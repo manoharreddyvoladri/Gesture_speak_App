@@ -1,0 +1,183 @@
+
+<!-- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestureSpeak - Video Room</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/room.css') }}">
+</head>
+<body>
+    <div class="room-container">
+        <div class="main-content">
+            <div class="room-header">
+                <div class="room-info">
+                    <h2>Room Session</h2>
+                    <div class="room-code">
+                        <span>{{room_id}}</span>
+                        <button class="copy-button" onclick="copyRoomCode()">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="participant-count">
+                    <i class="fas fa-users"></i>
+                    <span id="participant-count">1</span>/5
+                </div>
+            </div>
+            
+            <div class="video-grid" id="video-grid"></div>
+        </div>
+
+        <div class="side-panel">
+            <h3>Sign Language Predictions</h3>
+            <div class="predictions-container" id="predictions-container">
+            </div>
+        </div>
+
+        <div class="bottom-controls">
+            <button class="control-button" id="toggle-video">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="control-button" id="toggle-audio">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="control-button" id="toggle-prediction">
+                <i class="fas fa-american-sign-language-interpreting"></i>
+            </button>
+            <button class="control-button danger" onclick="leaveRoom()">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+    <script>
+        const ROOM_ID = "{{room_id}}";  // Make sure these are properly rendered by your template engine
+        const USERNAME = "{{username}}";
+    </script>
+
+    <script src="{{ url_for('static', filename='js/call.js') }}"></script>
+
+</body>
+</html> -->
+
+
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Room</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/room.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="main-container">
+            <div id="video-grid"></div>
+            <div id="predictions-container"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="toggle-video" class="control-button">
+                <i class="fas fa-video"></i>
+            </button>
+            <button id="toggle-audio" class="control-button">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button id="toggle-prediction" class="control-button">
+                <i class="fas fa-closed-captioning"></i>
+            </button>
+            <button id="leave-room" class="control-button" onclick="window.location.href='/dashboard'">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+    <script>
+        const ROOM_ID = "{{ room_id }}";
+        const USERNAME = "{{ username }}";
+    </script>
+
+    <script src="{{ url_for('static', filename='js/call.js') }}"></script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestureSpeak Conference</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/room.css') }}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="conference-container">
+        <div class="video-section">
+            <div id="video-grid" data-participants="1"></div>
+        </div>
+        
+        <div class="predictions-panel">
+            <div class="panel-header">
+                <h2>Sign Language Predictions</h2>
+            </div>
+            <div id="predictions-container"></div>
+        </div>
+
+        <div class="controls-bar">
+            <button id="toggle-video" class="control-button active" title="Toggle Video">
+                <i class="fas fa-video"></i>
+            </button>
+            <button id="toggle-audio" class="control-button active" title="Toggle Audio">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button id="toggle-prediction" class="control-button active" title="Toggle Predictions">
+                <i class="fas fa-closed-captioning"></i>
+            </button>
+            <button id="leave-room" class="control-button danger" title="Leave Meeting" onclick="window.location.href='/dashboard'">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const ROOM_ID = "{{ room_id }}";
+        const USERNAME = "{{ username }}";
+
+        // Update video grid layout based on participant count
+        function updateVideoGrid() {
+            const videoGrid = document.getElementById('video-grid');
+            const participantCount = videoGrid.children.length;
+            videoGrid.setAttribute('data-participants', participantCount);
+        }
+
+        // Observe video grid changes
+        const observer = new MutationObserver(updateVideoGrid);
+        observer.observe(document.getElementById('video-grid'), {
+            childList: true
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/call.js') }}"></script>
+</body>
+</html>

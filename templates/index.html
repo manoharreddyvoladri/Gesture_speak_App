@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GestureSpeak - Advanced Sign Language Recognition Platform">
+    <title>GestureSpeak - Professional Sign Language Recognition</title>
+    
+    <!-- Premium CSS Framework -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Professional Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Premium Animations -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1d4ed8;
+            --accent-color: #3b82f6;
+            --success-color: #10b981;
+            --background-color: #f8fafc;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --transition-speed: 0.3s;
+        }
+
+        body {
+            background-color: var(--background-color);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: var(--text-primary);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Premium Navigation Bar */
+        .navbar {
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            padding: 1rem 0;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-image {
+            height: 48px;
+            width: auto;
+            transition: transform var(--transition-speed) ease;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            margin-top: 80px;
+            padding: 2rem;
+            max-width: 1440px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Premium Video Container */
+        .video-section {
+            background: white;
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        #video, #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Premium Prediction Display */
+        .prediction-display {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 2rem;
+            text-align: center;
+            box-shadow: var(--card-shadow);
+        }
+
+        .prediction-title {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        #prediction {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin: 1rem 0;
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Professional Controls */
+        .controls-section {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            justify-content: center;
+        }
+
+        .control-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all var(--transition-speed);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .control-button:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        /* Status Indicator */
+        .status-indicator {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: pulse 2s infinite;
+        }
+
+        /* Professional User Welcome */
+        .user-welcome {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        /* Premium Buttons */
+        .btn-premium {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all var(--transition-speed);
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+        }
+
+        .btn-premium:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(37, 99, 235, 0.3);
+            color: white;
+        }
+
+        /* Professional Animations */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .main-content {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 992px) {
+            .navbar {
+                padding: 0.75rem 0;
+            }
+
+            .logo-image {
+                height: 40px;
+            }
+
+            .logo-text {
+                font-size: 1.25rem;
+            }
+
+            #prediction {
+                font-size: 3rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1rem;
+                margin-top: 70px;
+            }
+
+            .video-section {
+                padding: 1rem;
+            }
+
+            .prediction-display {
+                padding: 1.5rem;
+            }
+
+            #prediction {
+                font-size: 2.5rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .logo-text {
+                font-size: 1.1rem;
+            }
+
+            .controls-section {
+                flex-direction: column;
+            }
+
+            .control-button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Premium Navigation Bar -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GestureSpeak Logo" class="logo-image">
+                <span class="logo-text">GestureSpeak</span>
+            </div>
+            
+            <div class="d-flex align-items-center gap-4">
+                <div class="user-welcome d-none d-md-flex">
+                    <div class="user-avatar">
+                        {{ current_user.id[0].upper() }}
+                    </div>
+                    <span>{{ current_user.id }}</span>
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn-premium">
+                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="video-section">
+            <h2 class="text-center mb-4">Sign Language Recognition</h2>
+            
+            <div class="video-container">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Live</span>
+                </div>
+            </div>
+
+            <div class="prediction-display">
+                <div class="prediction-title">Current Prediction</div>
+                <div id="prediction">Waiting...</div>
+                
+                <div class="prediction-accuracy mt-3">
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted mt-2">Recognition Confidence</small>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <button class="control-button" id="startButton">
+                    <i class="fas fa-play"></i>
+                    Start Recognition
+                </button>
+                <button class="control-button" id="resetButton">
+                    <i class="fas fa-redo"></i>
+                    Reset
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Enhanced prediction updates
+        const updatePrediction = (text, confidence = 0) => {
+            const prediction = document.getElementById('prediction');
+            const progressBar = document.querySelector('.progress-bar');
+            
+            prediction.textContent = text;
+            progressBar.style.width = `${confidence}%`;
+            
+            // Add animation class
+            prediction.classList.add('animate__animated', 'animate__pulse');
+            
+            // Remove animation class after animation completes
+            setTimeout(() => {
+                prediction.classList.remove('animate__animated', 'animate__pulse');
+            }, 1000);
+        };
+
+        // Initialize controls
+        document.getElementById('startButton').addEventListener('click', () => {
+            // Add start recognition logic here
+            updatePrediction('Ready', 100);
+        });
+
+        document.getElementById('resetButton').addEventListener('click', () => {
+            updatePrediction('Waiting...', 0);
+        });
+    </script>
+</body>
+</html>

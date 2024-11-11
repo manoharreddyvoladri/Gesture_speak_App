@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestureSpeak - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GestureSpeak Logo">
+            <span>GestureSpeak</span>
+        </div>
+        <div class="user-info">
+            <span>Welcome, {{ current_user.id }}</span>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <div class="left-panel">
+            <div class="video-controls">
+                <h2>Video Conference</h2>
+                <button class="create-room-btn" onclick="createRoom()">
+                    <i class="fas fa-plus-circle"></i> Create Room
+                </button>
+                <div class="join-room-section">
+                    <!-- <input type="text" name="room-code" maxlength="15" placeholder="Enter 15-character room code" required> -->
+                    <input type="text" id="room-code" placeholder="Enter Room Code">
+                    <button class="join-room-btn" onclick="joinRoom()">
+                        <i class="fas fa-sign-in-alt"></i> Join Room
+                    <script src="js/main.js"></script>
+
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="sign-language-section">
+                <h2>Sign Language Tools</h2>
+                <a href="{{ url_for('index') }}" class="prediction-btn">
+                    <i class="fas fa-american-sign-language-interpreting"></i>
+                    Sign Language Prediction
+                </a>
+                <div class="sign-guide">
+                    <img src="{{ url_for('static', filename='images/sign.png') }}" alt="Sign Language Guide">
+                    <h3>Signs for Alphabets</h3>
+                    <div class="alphabet-grid">
+                        <!-- Grid of alphabet signs -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="project-info">
+        <div class="team-section">
+            <h3>Team Members</h3>
+            <ul>
+                <li>Voladri Manohar Reddy - 21BRS1177</li>
+                <li>Vaddhauri Raghava Surya Ganesh - 21BRS1614</li>
+                <li>K Sai Ruthwik Reddy - 21BCE5599</li>
+            </ul>
+        </div>
+        <div class="course-section">
+            <h3>Project Details</h3>
+            <p>Project-1</p>
+            <p>Course Code: BCES321J</p>
+        </div>
+        <div class="guide-section">
+            <h3>Guide Details</h3>
+            <p>Dr. Mohan R</p>
+            <p>School: SMEC</p>
+            <p>Cabin: AB1-406A, 3D Printing Lab</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

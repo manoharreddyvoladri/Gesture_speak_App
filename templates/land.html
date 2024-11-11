@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to GestureSpeak - Sign Language Translation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="landing-page">
+    <div class="hero-section">
+        <nav class="landing-nav">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GestureSpeak Logo" class="nav-logo">
+            <div class="nav-links">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#about" class="nav-link">About</a>
+                <a href="{{ url_for('login') }}" class="nav-link highlight">Sign In</a>
+            </div>
+        </nav>
+        
+        <div class="hero-content">
+            <h1 class="hero-title">Transform Sign Language Into Text</h1>
+            <p class="hero-subtitle">Real-time translation powered by AI technology</p>
+            <div class="auth-buttons">
+                <a href="{{ url_for('register') }}" class="primary-button">Get Started <i class="fas fa-arrow-right"></i></a>
+                <a href="{{ url_for('login') }}" class="secondary-button">Sign In</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="features-section" id="features">
+        <h2>Why Choose GestureSpeak</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <i class="fas fa-bolt feature-icon"></i>
+                <h3>Real-Time Translation</h3>
+                <p>Instant sign language to text conversion</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-mobile-alt feature-icon"></i>
+                <h3>Mobile Friendly</h3>
+                <p>Works seamlessly on all devices</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-shield-alt feature-icon"></i>
+                <h3>Secure & Private</h3>
+                <p>Your data is protected with encryption</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
