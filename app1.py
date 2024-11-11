@@ -14,79 +14,25 @@ from datetime import datetime, timedelta
 import base64
 import os
 import logging
-import gdown
-from dotenv import load_dotenv
 from call import init_video_call
 
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=os.getenv('LOG_LEVEL', 'INFO'),
-    filename=os.getenv('LOG_FILE', 'app.log'),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(os.getenv('LOG_FILE', 'app.log'))
-    ]
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Update model download function with new configuration
-def download_model_from_gdrive():
-    """Download the ASL model from Google Drive if not present."""
-    try:
-        model_path = os.getenv('MODEL_PATH', 'asl_model1.h5')
-        if not os.path.exists(model_path):
-            logger.info("Downloading ASL model from Google Drive...")
-            url = os.getenv('MODEL_DOWNLOAD_URL', 
-                          'https://drive.google.com/uc?id=1HaKX9r7D7F_xXH0yp5rDehMdjdNAfchl')
-            gdown.download(url, model_path, quiet=False)
-            logger.info("Model downloaded successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Error downloading model: {e}")
-        return False
-try:
-    mongo_client = MongoClient(os.getenv('MONGODB_URI'))
-    db = mongo_client[os.getenv('MONGODB_DB_NAME', 'gesturespeakdb')]
-    users_collection = db["users"]
-    rooms_collection = db["rooms"]
-    predictions_collection = db["predictions"]
-    logger.info("Successfully connected to MongoDB")
-except Exception as e:
-    logger.error(f"MongoDB connection error: {e}")
-    raise
-
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'aOJl6xXuAPl9iLjXn8GS7OpXpuv1IUj0')
-
-# Enhanced app configuration
-app.config.update(
-    SESSION_COOKIE_SECURE=os.getenv('SESSION_COOKIE_SECURE', 'True') == 'True',
-    SESSION_COOKIE_HTTPONLY=os.getenv('SESSION_COOKIE_HTTPONLY', 'True') == 'True',
-    SESSION_COOKIE_SAMESITE=os.getenv('SESSION_COOKIE_SAMESITE', 'Lax'),
-    PERMANENT_SESSION_LIFETIME=timedelta(days=int(os.getenv('SESSION_LIFETIME_DAYS', 7))),
-    MAX_CONTENT_LENGTH=16 * 1024 * 1024,
-    MAX_ROOM_PARTICIPANTS=int(os.getenv('MAX_ROOM_PARTICIPANTS', 5)),
-    ROOM_TIMEOUT_HOURS=int(os.getenv('ROOM_TIMEOUT_HOURS', 24)),
-    SOCKET_TIMEOUT=int(os.getenv('SOCKET_TIMEOUT', 60))
-)
+app.secret_key = 'your_secret_key'  # Change this in production
 
 # Configure CORS
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Update your SocketIO initialization with new configurations
-socketio = SocketIO(
-    app, 
-    cors_allowed_origins=os.getenv('CORS_ALLOWED_ORIGINS', '*'),
-    ping_timeout=int(os.getenv('SOCKET_TIMEOUT', 60)),
-    ping_interval=25,
-    logger=True,
-    engineio_logger=True
-)
+# Initialize Socket.IO
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60)
 
 # Initialize Login Manager
 login_manager = LoginManager()
@@ -94,91 +40,48 @@ login_manager.init_app(app)
 login_manager.login_view = 'land'
 bcrypt = Bcrypt(app)
 
-# Database connection with retry
-def get_mongo_client():
-    retries = 3
-    while retries > 0:
-        try:
-            mongo_uri = os.getenv('MONGODB_URI', 'mongodb+srv://gesturespeakdb:gesturespeakdb@gsusers.8wjxr.mongodb.net/')
-            client = MongoClient(mongo_uri)
-            client.admin.command('ping')
-            logger.info("Successfully connected to MongoDB")
-            return client
-        except Exception as e:
-            retries -= 1
-            if retries == 0:
-                logger.error(f"Failed to connect to MongoDB after 3 attempts: {e}")
-                raise
-            logger.warning(f"MongoDB connection attempt failed, retrying... ({3-retries}/3)")
-    return None
-
 try:
-    mongo_client = get_mongo_client()
-    db = mongo_client[os.getenv('MONGODB_DB_NAME', 'gesturespeakdb')]
+    # MongoDB connection
+    mongo_client = MongoClient("mongodb+srv://gesturespeakdb:gesturespeakdb@gsusers.8wjxr.mongodb.net/")
+    db = mongo_client["gesturespeakdb"]
     users_collection = db["users"]
     rooms_collection = db["rooms"]
-    predictions_collection = db["predictions"]
-    logger.info("MongoDB collections initialized")
+    logger.info("Successfully connected to MongoDB")
 except Exception as e:
-    logger.error(f"MongoDB initialization error: {e}")
+    logger.error(f"MongoDB connection error: {e}")
     raise
 
-# Twilio client initialization
-# Update Twilio configuration
 try:
-    twilio_client = Client(
-        os.getenv('TWILIO_ACCOUNT_SID'),
-        os.getenv('TWILIO_AUTH_TOKEN')
-    )
+    # Twilio configuration
+    account_sid = 'ACbc271c75232fa7cba0188f1b3f8618a2'
+    auth_token = 'a7f00c3cff83a88340e3eac3fcd12693'
+    twilio_client = Client(account_sid, auth_token)
     logger.info("Successfully initialized Twilio client")
 except Exception as e:
     logger.error(f"Twilio initialization error: {e}")
     twilio_client = None
 
-# Load ASL model with retry and download
-def load_asl_model():
-    retries = 3
-    while retries > 0:
-        try:
-            model_path = 'asl_model1.h5'
-            if not os.path.exists(model_path):
-                if not download_model_from_gdrive():
-                    raise Exception("Failed to download model")
-                
-            model = load_model(model_path)
-            logger.info(f"Successfully loaded ASL model from {model_path}")
-            return model
-        except Exception as e:
-            retries -= 1
-            if retries == 0:
-                logger.error(f"Failed to load ASL model after 3 attempts: {e}")
-                return None
-            logger.warning(f"Model loading attempt failed, retrying... ({3-retries}/3)")
-    return None
-
 try:
-    model = load_asl_model()
+    # Load ASL model
+    model = load_model('asl_model1.h5')
     class_map = ["A", "B", "C", "D", "E", "F", "G", "H", "Hello", "I", "I Love You",
-                "J", "K", "L", "M", "N", "No", "O", "P", "Q", "R", "S", "Space", 
-                "T", "U", "V", "W", "X", "Y", "Yes", "Z"]
+                 "J", "K", "L", "M", "N", "No", "O", "P", "Q", "R", "S", "Space", 
+                 "T", "U", "V", "W", "X", "Y", "Yes", "Z"]
+    logger.info("Successfully loaded ASL model")
 except Exception as e:
     logger.error(f"Model loading error: {e}")
     model = None
 
 class User(UserMixin):
-    def __init__(self, username, user_data=None):
+    def __init__(self, username):
         self.id = username
-        self.user_data = user_data or {}
-
-    def get_id(self):
-        return self.id
 
 @login_manager.user_loader
 def load_user(username):
     try:
         user_data = users_collection.find_one({"username": username})
         if user_data:
-            return User(username, user_data)
+            return User(user_data["username"])
         return None
     except Exception as e:
         logger.error(f"Error loading user: {e}")
@@ -194,45 +97,17 @@ def preprocess_frame(frame):
         return None
 
 def generate_otp():
-    """Generate a secure OTP."""
     return random.randint(100000, 999999)
 
 def generate_room_code():
-    """Generate a unique room code."""
-    while True:
-        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        if not rooms_collection.find_one({"room_id": code}):
-            return code
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
-def send_otp(phone_number, otp):
-    """Send OTP via Twilio."""
-    if not twilio_client:
-        logger.error("Twilio client not initialized")
-        return False
-
-    try:
-        message = twilio_client.messages.create(
-            body=f"Your GestureSpeak verification code is: {otp}",
-            from_=os.getenv('TWILIO_PHONE_NUMBER', '+17407600895'),
-            to=f'+91{phone_number}'
-        )
-        logger.info(f"OTP sent successfully to {phone_number}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send OTP: {e}")
-        return False
-# Routes
 @app.route('/')
 def land():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
     return render_template('land.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-
     if request.method == 'POST':
         try:
             username = request.form['username']
@@ -290,9 +165,13 @@ def phone_signin():
             session['temp_otp'] = otp
             session['temp_expiry'] = expiry.timestamp()
 
-        if not send_otp(phone_number, otp):
-            flash("Failed to send OTP. Please try again.", "error")
-            return redirect(url_for('login'))
+        # Send OTP via Twilio
+        if twilio_client:
+            twilio_client.messages.create(
+                body=f"Your GestureSpeak verification code is: {otp}",
+                from_='+17407600895',
+                to=f'+91{phone_number}'
+            )
         
         return redirect(url_for('verify_otp', phone_number=phone_number))
     except Exception as e:
@@ -310,14 +189,18 @@ def verify_otp(phone_number):
             if user:
                 if datetime.utcnow() > user["otp_expiry"]:
                     flash("OTP expired", "error")
-                    return redirect(url_for('land'))
+                    return redirect(url_for('login'))
                 if int(entered_otp) == user["otp"]:
                     login_user(User(user["username"]))
+                    users_collection.update_one(
+                        {"username": user["username"]},
+                        {"$set": {"last_login": datetime.utcnow()}}
+                    )
                     return redirect(url_for('dashboard'))
             else:
                 if datetime.utcnow().timestamp() > session.get('temp_expiry', 0):
                     flash("OTP expired", "error")
-                    return redirect(url_for('land'))
+                    return redirect(url_for('login'))
                 if int(entered_otp) == session.get('temp_otp'):
                     return redirect(url_for('register'))
 
@@ -325,6 +208,7 @@ def verify_otp(phone_number):
         except Exception as e:
             logger.error(f"OTP verification error: {e}")
             flash("Error verifying OTP", "error")
+    
     return render_template('verify_otp.html', phone_number=phone_number)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -348,7 +232,7 @@ def register():
             hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
             phone_number = session.get('temp_phone')
 
-            users_collection.insert_one({
+            user_data = {
                 "name": name,
                 "email": email,
                 "username": username,
@@ -357,8 +241,9 @@ def register():
                 "verified": True,
                 "created_at": datetime.utcnow(),
                 "last_login": datetime.utcnow()
-            })
+            }
             
+            users_collection.insert_one(user_data)
             login_user(User(username))
             return redirect(url_for('dashboard'))
         except Exception as e:
@@ -410,6 +295,7 @@ def predict():
 def create_room():
     try:
         room_id = generate_room_code()
+        
         rooms_collection.insert_one({
             "room_id": room_id,
             "creator": current_user.id,
@@ -423,6 +309,7 @@ def create_room():
                 "enable_predictions": True
             }
         })
+        
         return jsonify({'room_id': room_id})
     except Exception as e:
         logger.error(f"Room creation error: {e}")
@@ -483,6 +370,7 @@ def room(room_id):
 @login_required
 def logout():
     try:
+        # Update last activity
         users_collection.update_one(
             {"username": current_user.id},
             {"$set": {"last_activity": datetime.utcnow()}}
@@ -492,71 +380,28 @@ def logout():
         logger.error(f"Logout error: {e}")
     return redirect(url_for('land'))
 
-@app.route('/health')
-def health_check():
-    """Health check endpoint."""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.utcnow().isoformat(),
-        'model_loaded': bool(model),
-        'database_connected': bool(mongo_client)
-    })
-
 @app.errorhandler(404)
 def not_found_error(error):
-    return render_template('error.html',
+    return render_template('land.html', 
                          error="Page not found",
                          message="The requested page could not be found."), 404
 
 @app.errorhandler(500)
 def internal_error(error):
     logger.error(f"Internal server error: {error}")
-    return render_template('error.html',
+    return render_template('land.html',
                          error="Internal Server Error",
                          message="An unexpected error occurred."), 500
 
 # Initialize video calling functionality
 socketio = init_video_call(app)
 
-# Update cleanup function with new configuration
-def cleanup_inactive_rooms():
-    """Cleanup inactive rooms periodically."""
-    while True:
-        try:
-            timeout_hours = int(os.getenv('ROOM_TIMEOUT_HOURS', 24))
-            cleanup_interval = int(os.getenv('ROOM_CLEANUP_INTERVAL', 300))
-            cutoff_time = datetime.utcnow() - timedelta(hours=timeout_hours)
-            
-            rooms_collection.update_many(
-                {
-                    "last_activity": {"$lt": cutoff_time},
-                    "active": True
-                },
-                {"$set": {"active": False}}
-            )
-            logger.info("Completed room cleanup")
-        except Exception as e:
-            logger.error(f"Room cleanup error: {e}")
-        socketio.sleep(cleanup_interval)
-
 if __name__ == '__main__':
     try:
-        # Start background tasks
-        socketio.start_background_task(cleanup_inactive_rooms)
-        
-        # Get configuration from environment
-        port = int(os.getenv('PORT', 5000))
-        host = os.getenv('HOST', '0.0.0.0')
-        debug = os.getenv('FLASK_ENV') == 'development'
-        
-        # Run the application
-        socketio.run(
-            app,
-            host=host,
-            port=port,
-            debug=debug,
-            allow_unsafe_werkzeug=True
-        )
+        port = int(os.environ.get('PORT', 5000))
+        socketio.run(app, 
+                    debug=True,
+                    port=port,
+                    allow_unsafe_werkzeug=True)
     except Exception as e:
         logger.error(f"Server startup error: {e}")
-        raise

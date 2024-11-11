@@ -109,3 +109,4 @@ Werkzeug==3.0.4
 wrapt==1.16.0
 yarg==0.1.9
 yarl==1.17.1
+gdown==4.7.1
