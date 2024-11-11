@@ -546,7 +546,7 @@ if __name__ == '__main__':
         
         # Get configuration from environment
         port = int(os.getenv('PORT', 5000))
-        host = os.getenv('HOST', '0.0.0.0')
+        host = os.getenv('HOST', '127.0.0.1')  # Changed to 127.0.0.1
         debug = os.getenv('FLASK_ENV') == 'development'
         
         # Run the application
