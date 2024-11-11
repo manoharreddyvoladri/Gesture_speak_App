@@ -2,8 +2,8 @@ data/
 model/
 *.h5
 venv/
-/asl_model.h5
-/asl_model1.h5
+/.env
+/ttt.py
 
 # Python
 __pycache__/
