@@ -1,212 +1,407 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask_login import login_required, current_user
-from datetime import datetime, timedelta
-import secrets
-import logging
-from typing import Dict, Optional
+# from flask import Flask, render_template, request, redirect, url_for, flash
+# from flask_socketio import SocketIO, emit, join_room, leave_room
+# from flask_login import login_required, current_user
+# from datetime import datetime, timedelta
+# import secrets
+# import logging
+# import os
+# from typing import Dict, Optional
+# from pymongo import MongoClient
 
-# Configure logging
+# # Configure logging
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+
+# class RoomManager:
+#     def __init__(self):
+#         self.active_rooms: Dict[str, dict] = {}
+#         self.user_rooms: Dict[str, str] = {}  # sid -> room_id
+#         self.max_rooms = 100
+#         self.max_participants = 10
+#         self.room_timeout = timedelta(hours=24)
+
+#     def create_room(self, room_id: str) -> bool:
+#         if len(self.active_rooms) >= self.max_rooms:
+#             return False
+            
+#         if room_id not in self.active_rooms:
+#             self.active_rooms[room_id] = {
+#                 'participants': {},  # username -> {sid, joined_at}
+#                 'created_at': datetime.now(),
+#                 'settings': {
+#                     'max_participants': self.max_participants,
+#                     'enable_predictions': True
+#                 }
+#             }
+#         return True
+
+#     def can_join_room(self, room_id: str, username: str) -> tuple[bool, Optional[str]]:
+#         if room_id not in self.active_rooms:
+#             return False, "Room does not exist"
+            
+#         room = self.active_rooms[room_id]
+        
+#         if len(room['participants']) >= self.max_participants:
+#             return False, "Room is full"
+            
+#         if username in room['participants']:
+#             return False, "Already in this room"
+            
+#         if self._is_room_expired(room):
+#             self._cleanup_room(room_id)
+#             return False, "Room has expired"
+            
+#         return True, None
+
+#     def add_participant(self, room_id: str, username: str, sid: str) -> None:
+#         self.active_rooms[room_id]['participants'][username] = {
+#             'sid': sid,
+#             'joined_at': datetime.now()
+#         }
+#         self.user_rooms[sid] = room_id
+
+#     def remove_participant(self, room_id: str, username: str) -> None:
+#         if room_id in self.active_rooms:
+#             participant = self.active_rooms[room_id]['participants'].pop(username, None)
+#             if participant:
+#                 self.user_rooms.pop(participant['sid'], None)
+
+#     def get_participant_count(self, room_id: str) -> int:
+#         return len(self.active_rooms.get(room_id, {}).get('participants', {}))
+
+#     def get_participant_list(self, room_id: str) -> list:
+#         return list(self.active_rooms.get(room_id, {}).get('participants', {}).keys())
+
+#     def get_participant_sid(self, room_id: str, username: str) -> Optional[str]:
+#         participant = self.active_rooms.get(room_id, {}).get('participants', {}).get(username)
+#         return participant['sid'] if participant else None
+
+#     def _is_room_expired(self, room: dict) -> bool:
+#         return datetime.now() - room['created_at'] > self.room_timeout
+
+#     def _cleanup_room(self, room_id: str) -> None:
+#         if room_id in self.active_rooms:
+#             for participant in self.active_rooms[room_id]['participants'].values():
+#                 self.user_rooms.pop(participant['sid'], None)
+#             del self.active_rooms[room_id]
+
+#     def cleanup_empty_rooms(self) -> None:
+#         current_time = datetime.now()
+#         rooms_to_cleanup = [
+#             room_id for room_id, room in self.active_rooms.items()
+#             if len(room['participants']) == 0 or current_time - room['created_at'] > self.room_timeout
+#         ]
+#         for room_id in rooms_to_cleanup:
+#             self._cleanup_room(room_id)
+# # WebRTC configuration
+# ICE_SERVERS = [
+#     {
+#         "urls": [
+#             "stun:stun.l.google.com:19302",
+#             "stun:stun1.l.google.com:19302",
+#             "stun:stun2.l.google.com:19302"
+#         ]
+#     },
+#     {
+#         "urls": "turn:numb.viagenie.ca",
+#         "username": "webrtc@live.com",
+#         "credential": "muazkh"
+#     }
+# ]
+
+# def get_mongo_client():
+#     mongo_uri = os.getenv('MONGODB_URI', 'mongodb+srv://gesturespeakdb:gesturespeakdb@gsusers.8wjxr.mongodb.net/')
+#     return MongoClient(mongo_uri)
+
+# def init_video_call(app: Flask) -> SocketIO:
+#     socketio = SocketIO(app, 
+#                        cors_allowed_origins="*", 
+#                        ping_timeout=60,
+#                        ping_interval=25,
+#                        async_mode='eventlet')
+#     room_manager = RoomManager()
+
+#     @socketio.on('connect')
+#     def handle_connect():
+#         logger.info(f"Client connected: {request.sid}")
+#         emit('connection_success', {'sid': request.sid})
+
+#     @socketio.on('disconnect')
+#     def handle_disconnect():
+#         try:
+#             sid = request.sid
+#             room_id = room_manager.user_rooms.get(sid)
+#             if room_id:
+#                 username = None
+#                 for user, data in room_manager.active_rooms[room_id]['participants'].items():
+#                     if data['sid'] == sid:
+#                         username = user
+#                         break
+                                
+#                 if username:
+#                     room_manager.remove_participant(room_id, username)
+#                     emit('user_left', {
+#                         'username': username,
+#                         'participant_count': room_manager.get_participant_count(room_id)
+#                     }, room=room_id)
+                
+#                 room_manager.cleanup_empty_rooms()
+#         except Exception as e:
+#             logger.error(f"Error in handle_disconnect: {e}")
+
+#     @socketio.on('join_room')
+#     def handle_join_room(data):
+#         try:
+#             username = data['username']
+#             room_id = data['room']
+            
+#             mongo_client = get_mongo_client()
+#             db = mongo_client[os.getenv('MONGODB_DB_NAME', 'gesturespeakdb')]
+#             room = db.rooms.find_one({"room_id": room_id, "active": True})
+            
+#             if not room:
+#                 emit('error', {'message': 'Room does not exist'})
+#                 return
+            
+#             join_room(room_id)
+#             room_manager.add_participant(room_id, username, request.sid)
+            
+#             emit('user_joined', {
+#                 'username': username,
+#                 'participant_count': room_manager.get_participant_count(room_id)
+#             }, room=room_id)
+            
+#             emit('room_participants', {
+#                 'participants': room_manager.get_participant_list(room_id)
+#             })
+            
+#             logger.info(f"User {username} joined room {room_id}")
+#         except Exception as e:
+#             logger.error(f"Join room error: {e}")
+#             emit('error', {'message': 'Failed to join room'})
+
+#     @socketio.on('offer')
+#     def handle_offer(data):
+#         try:
+#             target_username = data['target']
+#             room_id = data['room']
+#             target_sid = room_manager.get_participant_sid(room_id, target_username)
+            
+#             if target_sid:
+#                 emit('offer', {
+#                     'sdp': data['sdp'],
+#                     'username': data['username']
+#                 }, room=target_sid)
+#         except Exception as e:
+#             logger.error(f"Error in handle_offer: {e}")
+
+#     @socketio.on('answer')
+#     def handle_answer(data):
+#         try:
+#             target = data['target']
+#             room_id = data['room']
+#             sid = room_manager.get_participant_sid(room_id, target)
+            
+#             if sid:
+#                 emit('answer', {
+#                     'sdp': data['sdp'],
+#                     'username': data['username']
+#                 }, room=sid)
+#         except Exception as e:
+#             logger.error(f"Answer error: {e}")
+
+#     @socketio.on('ice_candidate')
+#     def handle_ice_candidate(data):
+#         try:
+#             target = data['target']
+#             room_id = data['room']
+#             sid = room_manager.get_participant_sid(room_id, target)
+            
+#             if sid:
+#                 emit('ice_candidate', {
+#                     'candidate': data['candidate'],
+#                     'username': data['username']
+#                 }, room=sid)
+#         except Exception as e:
+#             logger.error(f"ICE candidate error: {e}")
+
+#     @socketio.on('sign_prediction')
+#     def handle_sign_prediction(data):
+#         try:
+#             room_id = data['room']
+#             if room_id in room_manager.active_rooms:
+#                 emit('sign_prediction', {
+#                     'username': data['username'],
+#                     'prediction': data['prediction']
+#                 }, room=room_id)
+#         except Exception as e:
+#             logger.error(f"Error in handle_sign_prediction: {e}")
+
+#     return socketio
+
+
+
+
+
+
+
+
+from flask import Flask, request
+from flask_socketio import SocketIO, emit, join_room, leave_room
+import logging
+from datetime import datetime
+from pymongo import MongoClient
+import os
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class RoomManager:
-    def __init__(self):
-        self.active_rooms: Dict[str, dict] = {}
-        self.user_rooms: Dict[str, str] = {}  # sid -> room_id
-        self.max_rooms = 100
-        self.max_participants = 5
-        self.room_timeout = timedelta(hours=24)
-
-    def create_room(self, room_id: str) -> bool:
-        if len(self.active_rooms) >= self.max_rooms:
-            return False
-            
-        if room_id not in self.active_rooms:
-            self.active_rooms[room_id] = {
-                'participants': {},  # username -> {sid, joined_at}
-                'created_at': datetime.now(),
-                'settings': {
-                    'max_participants': self.max_participants,
-                    'enable_predictions': True
-                }
-            }
-        return True
-
-    def can_join_room(self, room_id: str, username: str) -> tuple[bool, Optional[str]]:
-        if room_id not in self.active_rooms:
-            return False, "Room does not exist"
-            
-        room = self.active_rooms[room_id]
-        
-        if len(room['participants']) >= self.max_participants:
-            return False, "Room is full"
-            
-        if username in room['participants']:
-            return False, "Already in this room"
-            
-        if self._is_room_expired(room):
-            self._cleanup_room(room_id)
-            return False, "Room has expired"
-            
-        return True, None
-
-    def add_participant(self, room_id: str, username: str, sid: str) -> None:
-        self.active_rooms[room_id]['participants'][username] = {
-            'sid': sid,
-            'joined_at': datetime.now()
-        }
-        self.user_rooms[sid] = room_id
-
-    def remove_participant(self, room_id: str, username: str) -> None:
-        if room_id in self.active_rooms:
-            participant = self.active_rooms[room_id]['participants'].pop(username, None)
-            if participant:
-                self.user_rooms.pop(participant['sid'], None)
-
-    def get_participant_count(self, room_id: str) -> int:
-        return len(self.active_rooms.get(room_id, {}).get('participants', {}))
-
-    def get_participant_list(self, room_id: str) -> list:
-        return list(self.active_rooms.get(room_id, {}).get('participants', {}).keys())
-
-    def get_participant_sid(self, room_id: str, username: str) -> Optional[str]:
-        participant = self.active_rooms.get(room_id, {}).get('participants', {}).get(username)
-        return participant['sid'] if participant else None
-
-    def _is_room_expired(self, room: dict) -> bool:
-        return datetime.now() - room['created_at'] > self.room_timeout
-
-    def _cleanup_room(self, room_id: str) -> None:
-        if room_id in self.active_rooms:
-            for participant in self.active_rooms[room_id]['participants'].values():
-                self.user_rooms.pop(participant['sid'], None)
-            del self.active_rooms[room_id]
-
-    def cleanup_empty_rooms(self) -> None:
-        current_time = datetime.now()
-        rooms_to_cleanup = [
-            room_id for room_id, room in self.active_rooms.items()
-            if len(room['participants']) == 0 or current_time - room['created_at'] > self.room_timeout
-        ]
-        for room_id in rooms_to_cleanup:
-            self._cleanup_room(room_id)
-
-def init_video_call(app: Flask) -> SocketIO:
-    socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60)
-    room_manager = RoomManager()
+def init_video_call(app):
+    socketio = SocketIO(app, 
+                       cors_allowed_origins="*", 
+                       ping_timeout=60,
+                       ping_interval=25,
+                       async_mode='eventlet')
+    
+    # Track active users and rooms
+    active_rooms = {}
+    user_rooms = {}
 
     @socketio.on('connect')
     def handle_connect():
-        logger.info(f"Client connected: {request.sid}")
+        logger.info(f'Client connected: {request.sid}')
+        emit('connection_success', {'sid': request.sid})
 
     @socketio.on('disconnect')
     def handle_disconnect():
-        try:
-            room_id = room_manager.user_rooms.get(request.sid)
-            if room_id:
-                for username, participant in room_manager.active_rooms[room_id]['participants'].items():
-                    if participant['sid'] == request.sid:
-                        room_manager.remove_participant(room_id, username)
-                        emit('user_left', {
-                            'username': username,
-                            'participant_count': room_manager.get_participant_count(room_id)
-                        }, room=room_id)
-                        break
+        room_id = user_rooms.get(request.sid)
+        if room_id and room_id in active_rooms:
+            username = None
+            # Find username for this session
+            for user, data in active_rooms[room_id]['participants'].items():
+                if data['sid'] == request.sid:
+                    username = user
+                    break
+            
+            if username:
+                del active_rooms[room_id]['participants'][username]
+                del user_rooms[request.sid]
                 
-                room_manager.cleanup_empty_rooms()
+                if not active_rooms[room_id]['participants']:
+                    del active_rooms[room_id]
                 
-        except Exception as e:
-            logger.error(f"Error in handle_disconnect: {e}")
+                emit('user_left', {
+                    'username': username,
+                    'participant_count': len(active_rooms.get(room_id, {}).get('participants', {}))
+                }, room=room_id)
 
-    @socketio.on('join')
-    def handle_join(data):
+    @socketio.on('join_room')
+    def handle_join_room(data):
         try:
             username = data['username']
             room_id = data['room']
             
-            can_join, error = room_manager.can_join_room(room_id, username)
-            if not can_join:
-                emit('error', {'message': error})
-                return
-            
             join_room(room_id)
-            room_manager.add_participant(room_id, username, request.sid)
             
+            if room_id not in active_rooms:
+                active_rooms[room_id] = {
+                    'participants': {},
+                    'created_at': datetime.now()
+                }
+                
+            active_rooms[room_id]['participants'][username] = {
+                'sid': request.sid,
+                'joined_at': datetime.now()
+            }
+            user_rooms[request.sid] = room_id
+            
+            # Get current participants
+            participants = list(active_rooms[room_id]['participants'].keys())
+            
+            # Notify room about new user
             emit('user_joined', {
                 'username': username,
-                'participant_count': room_manager.get_participant_count(room_id)
+                'participant_count': len(participants)
             }, room=room_id)
             
+            # Send participants list to the new user
             emit('room_participants', {
-                'participants': room_manager.get_participant_list(room_id)
+                'participants': participants
             })
             
-            logger.info(f"User {username} joined room {room_id}")
-            
+            logger.info(f'User {username} joined room {room_id}')
         except Exception as e:
-            logger.error(f"Error in handle_join: {e}")
+            logger.error(f'Join room error: {str(e)}')
             emit('error', {'message': 'Failed to join room'})
+
+    @socketio.on('leave_room')
+    def handle_leave_room(data):
+        try:
+            username = data['username']
+            room_id = data['room']
+            
+            if room_id in active_rooms and username in active_rooms[room_id]['participants']:
+                del active_rooms[room_id]['participants'][username]
+                leave_room(room_id)
+                
+                emit('user_left', {
+                    'username': username,
+                    'participant_count': len(active_rooms[room_id]['participants'])
+                }, room=room_id)
+        except Exception as e:
+            logger.error(f'Leave room error: {str(e)}')
 
     @socketio.on('offer')
     def handle_offer(data):
         try:
-            target_username = data['target']
             room_id = data['room']
-            target_sid = room_manager.get_participant_sid(room_id, target_username)
-            
-            if target_sid:
+            target = data['target']
+            if room_id in active_rooms and target in active_rooms[room_id]['participants']:
+                target_sid = active_rooms[room_id]['participants'][target]['sid']
                 emit('offer', {
                     'sdp': data['sdp'],
                     'username': data['username']
                 }, room=target_sid)
-                
         except Exception as e:
-            logger.error(f"Error in handle_offer: {e}")
+            logger.error(f'Offer error: {str(e)}')
 
     @socketio.on('answer')
     def handle_answer(data):
         try:
-            target_username = data['target']
             room_id = data['room']
-            target_sid = room_manager.get_participant_sid(room_id, target_username)
-            
-            if target_sid:
+            target = data['target']
+            if room_id in active_rooms and target in active_rooms[room_id]['participants']:
+                target_sid = active_rooms[room_id]['participants'][target]['sid']
                 emit('answer', {
                     'sdp': data['sdp'],
                     'username': data['username']
                 }, room=target_sid)
-                
         except Exception as e:
-            logger.error(f"Error in handle_answer: {e}")
+            logger.error(f'Answer error: {str(e)}')
 
     @socketio.on('ice_candidate')
     def handle_ice_candidate(data):
         try:
-            target_username = data['target']
             room_id = data['room']
-            target_sid = room_manager.get_participant_sid(room_id, target_username)
-            
-            if target_sid:
+            target = data['target']
+            if room_id in active_rooms and target in active_rooms[room_id]['participants']:
+                target_sid = active_rooms[room_id]['participants'][target]['sid']
                 emit('ice_candidate', {
                     'candidate': data['candidate'],
                     'username': data['username']
                 }, room=target_sid)
-                
         except Exception as e:
-            logger.error(f"Error in handle_ice_candidate: {e}")
+            logger.error(f'ICE candidate error: {str(e)}')
 
     @socketio.on('sign_prediction')
     def handle_sign_prediction(data):
         try:
             room_id = data['room']
-            if room_id in room_manager.active_rooms:
-                emit('sign_prediction', {
-                    'username': data['username'],
-                    'prediction': data['prediction']
-                }, room=room_id)
-                
+            emit('sign_prediction', {
+                'username': data['username'],
+                'prediction': data['prediction']
+            }, room=room_id)
         except Exception as e:
-            logger.error(f"Error in handle_sign_prediction: {e}")
+            logger.error(f'Sign prediction error: {str(e)}')
 
     return socketio

@@ -1,4 +1,4 @@
-/* dashboard.css */
+/* dashboard.css
 :root {
     --primary-color: #000000;
     --secondary-color: #000000;
@@ -17,6 +17,44 @@
     box-sizing: border-box;
     font-family: 'Roboto', sans-serif;
 }
+
+.room-message {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    text-align: center;
+    display: none;
+}
+
+.room-message.success {
+    display: block;
+    background-color: rgba(39, 174, 96, 0.1);
+    color: #27AE60;
+    border: 1px solid #27AE60;
+}
+
+.room-message.error {
+    display: block;
+    background-color: rgba(231, 76, 60, 0.1);
+    color: #E74C3C;
+    border: 1px solid #E74C3C;
+}
+
+.join-room-section input {
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+    font-size: 1.2rem;
+    padding: 0.75rem;
+}
+
+.join-room-section button:disabled,
+.create-room-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
 
 body {
     background-color: var(--light-bg);
@@ -228,4 +266,331 @@ body {
     .dashboard-container {
         grid-template-columns: 1fr;
     }
+} */
+
+/* Dashboard CSS */
+:root {
+    --primary-color: #468be5;
+    --secondary-color: #3279cb;
+    --success-color: #3c89d6;
+    --danger-color: #DC2626;
+    --warning-color: #D97706;
+    --info-color: #2563EB;
+    --background: #F3F4F6;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --text-primary: #1F2937;
+    --text-secondary: #67717f;
+    --border-radius: 1rem;
+}
+
+/* General Styles */
+.dashboard-body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #dedede, #000000);
+    min-height: 100vh;
+    color: var(--text-primary);
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.spinner-container {
+    text-align: center;
+}
+
+.loading-text {
+    color: white;
+    margin-top: 1rem;
+    display: block;
+}
+
+/* Navbar Styles */
+.navbar-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 2rem;
+}
+
+.navbar-logo {
+    height: 40px;
+    width: auto;
+    margin-right: 1rem;
+}
+
+.brand-text {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.welcome-text {
+    color: white !important;
+    opacity: 0.9;
+}
+
+.logout-btn {
+    border-color: rgba(255, 255, 255, 0.5);
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: white;
+}
+
+/* Card Styles */
+.card-glass {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(7, 131, 255, 0.619);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Card Styles (continued) */
+.card-glass:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.card-title {
+    color: var(--text-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.card-title i {
+    color: var(--primary-color);
+}
+
+/* Button Styles */
+.create-room-btn {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: none;
+    padding: 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.create-room-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.create-room-btn:active {
+    transform: translateY(0);
+}
+
+/* Room Code Input Styles */
+.room-code-input {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.room-code {
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.room-code:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+/* Recent Rooms Styles */
+.recent-rooms-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.recent-room-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.recent-room-item:hover {
+    background: #F9FAFB;
+    transform: translateX(5px);
+}
+
+.recent-room-item i {
+    color: var(--primary-color);
+}
+
+.room-id {
+    font-weight: 500;
+    flex: 1;
+}
+
+.room-time {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* Sign Language Tools Section */
+.quick-actions {
+    margin: 2rem 0;
+}
+
+.prediction-btn {
+    background: linear-gradient(135deg, var(--success-color), #065F46);
+    border: none;
+    padding: 1.25rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.prediction-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+.info-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    height: 100%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.info-card h4 {
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+
+.info-card img {
+    width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    transition: transform 0.3s ease;
+}
+
+.info-card img:hover {
+    transform: scale(1.05);
+}
+
+/* Room Message Styles */
+.room-message {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.room-message.success {
+    background-color: rgba(5, 150, 105, 0.1);
+    color: var(--success-color);
+    border: 1px solid var(--success-color);
+}
+
+.room-message.error {
+    background-color: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+    border: 1px solid var(--danger-color);
+}
+
+/* Footer Styles */
+footer {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    margin-top: 3rem;
+    color: white;
+}
+
+footer h3 {
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 1rem;
+}
+
+footer p, footer li {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+    .dashboard-container {
+        padding: 1rem;
+    }
+    
+    .card-glass {
+        margin-bottom: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .navbar-glass {
+        padding: 1rem;
+    }
+    
+    .brand-text {
+        font-size: 1.25rem;
+    }
+    
+    .room-code {
+        font-size: 1rem;
+    }
+    
+    footer {
+        text-align: center;
+    }
+}
+
+/* Utility Classes */
+.btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.btn-glass:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
 }

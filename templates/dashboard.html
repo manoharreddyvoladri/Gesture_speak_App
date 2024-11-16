@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,15 +26,13 @@
                 <h2>Video Conference</h2>
                 <button class="create-room-btn" onclick="createRoom()">
                     <i class="fas fa-plus-circle"></i> Create Room
-                </button>
-                <div class="join-room-section">
-                    <!-- <input type="text" name="room-code" maxlength="15" placeholder="Enter 15-character room code" required> -->
-                    <input type="text" id="room-code" placeholder="Enter Room Code">
-                    <button class="join-room-btn" onclick="joinRoom()">
-                        <i class="fas fa-sign-in-alt"></i> Join Room
-                    <script src="js/main.js"></script>
-
-                    </button>
+                    <div class="join-room-section">
+                        <input type="text" id="room_id" maxlength="8" placeholder="Enter Room Code" pattern="[A-Z0-9]+" required>
+                        <button class="join-room-btn" id="joinRoomBtn">
+                            <i class="fas fa-sign-in-alt"></i> Join Room
+                        </button>
+                    </div>
+                    <div id="roomMessage" class="room-message"></div>
                 </div>
             </div>
         </div>
@@ -50,7 +48,7 @@
                     <img src="{{ url_for('static', filename='images/sign.png') }}" alt="Sign Language Guide">
                     <h3>Signs for Alphabets</h3>
                     <div class="alphabet-grid">
-                        <!-- Grid of alphabet signs -->
+
                     </div>
                 </div>
             </div>
@@ -78,7 +76,371 @@
             <p>Cabin: AB1-406A, 3D Printing Lab</p>
         </div>
     </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const createRoomBtn = document.getElementById('createRoomBtn');
+            const joinRoomBtn = document.getElementById('joinRoomBtn');
+            const roomInput = document.getElementById('room_id');
+            const roomMessage = document.getElementById('roomMessage');
 
+            // Create room function
+            createRoomBtn.addEventListener('click', async function() {
+                try {
+                    createRoomBtn.disabled = true;
+                    const response = await fetch('/create-room');
+                    const data = await response.json();
+                    
+                    if (data.room_id) {
+                        roomMessage.textContent = `Room created! Joining room...`;
+                        roomMessage.className = 'room-message success';
+                        window.location.href = `/room/${data.room_id}`;
+                    } else {
+                        throw new Error('Failed to create room');
+                    }
+                } catch (error) {
+                    console.error('Error creating room:', error);
+                    roomMessage.textContent = 'Error creating room. Please try again.';
+                    roomMessage.className = 'room-message error';
+                    createRoomBtn.disabled = false;
+                }
+            });
+
+            // Join room function
+            joinRoomBtn.addEventListener('click', function() {
+                const roomCode = roomInput.value.trim().toUpperCase();
+                if (!roomCode) {
+                    roomMessage.textContent = 'Please enter a room code';
+                    roomMessage.className = 'room-message error';
+                    return;
+                }
+
+                // Create and submit the form
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/join-room';
+
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'room_id';
+                input.value = roomCode;
+
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            });
+
+            // Room code input validation
+            roomInput.addEventListener('input', function() {
+                this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                if (this.value.length > 8) {
+                    this.value = this.value.slice(0, 8);
+                }
+            });
+
+            // Handle form submission on Enter key
+            roomInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    joinRoomBtn.click();
+                }
+            });
+        });
+    </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestureSpeak - Dashboard</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body class="dashboard-body">
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner-container">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span class="loading-text">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-glass">
+        <div class="container-fluid">
+            <div class="navbar-brand d-flex align-items-center">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GestureSpeak Logo" class="navbar-logo">
+                <span class="brand-text">GestureSpeak</span>
+            </div>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <span class="nav-link welcome-text">Welcome, {{ current_user.id }}</span>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-light logout-btn">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="dashboard-container">
+        <div class="container py-4">
+            <div class="row g-4">
+                <!-- Left Panel -->
+                <div class="col-lg-4">
+                    <div class="card card-glass h-100">
+                        <div class="card-body">
+                            <h2 class="card-title mb-4">
+                                <i class="fas fa-video"></i> Video Conference
+                            </h2>
+                            
+                            <!-- Create Room Button -->
+                            <button class="btn btn-primary w-100 mb-4 create-room-btn" id="createRoomBtn">
+                                <i class="fas fa-plus-circle me-2"></i>
+                                Create New Room
+                            </button>
+
+                            <!-- Join Room Section -->
+                            <div class="join-room-section">
+                                <div class="room-code-input">
+                                    <label for="room_id" class="form-label">Join Existing Room</label>
+                                    <div class="input-group mb-3">
+                                        <input type="text" 
+                                               class="form-control room-code" 
+                                               id="room_id" 
+                                               placeholder="Enter Room Code"
+                                               maxlength="8"
+                                               pattern="[A-Z0-9]+"
+                                               required>
+                                        <button class="btn btn-secondary" type="button" id="joinRoomBtn">
+                                            <i class="fas fa-sign-in-alt me-2"></i>Join
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Room Message -->
+                            <div id="roomMessage" class="room-message mt-3"></div>
+
+                            <!-- Recent Rooms -->
+                            <div class="recent-rooms mt-4">
+                                <h3 class="h5 mb-3">Recent Rooms</h3>
+                                <div class="recent-rooms-list">
+                                    {% for room in recent_rooms %}
+                                    <div class="recent-room-item" onclick="joinRecentRoom('{{ room.room_id }}')">
+                                        <i class="fas fa-door-open"></i>
+                                        <span class="room-id">{{ room.room_id }}</span>
+                                        <span class="room-time">{{ room.created_at.strftime('%H:%M') }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel -->
+                <div class="col-lg-8">
+                    <div class="card card-glass h-100">
+                        <div class="card-body">
+                            <h2 class="card-title mb-4">
+                                <i class="fas fa-american-sign-language-interpreting"></i>
+                                Sign Language Tools
+                            </h2>
+
+                            <!-- Quick Actions -->
+                            <div class="quick-actions mb-4">
+                                <a href="{{ url_for('index') }}" class="btn btn-success btn-lg w-100 prediction-btn">
+                                    <i class="fas fa-american-sign-language-interpreting me-2"></i>
+                                    Launch Sign Language Prediction
+                                </a>
+                            </div>
+
+                            <!-- Sign Language Guide -->
+                            <div class="sign-guide">
+                                <h3 class="h5 mb-3">Sign Language Guide</h3>
+                                <div class="sign-guide-content">
+                                    <div class="row g-4">
+                                        <div class="col-md-6">
+                                            <div class="info-card">
+                                                <h4 class="h6">Basic Signs</h4>
+                                                <img src="{{ url_for('static', filename='images/sign.png') }}" 
+                                                     alt="Basic Signs" 
+                                                     class="img-fluid rounded">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+
+                                            <div class="info-card">
+                                                <h4 class="h6">To View Source Code</h4>
+                                                <a href="https://github.com/manoharreddyvoladri/Gesture_speak_App" target="_blank" style="text-decoration: none; color: inherit;">
+                                                <img src="{{ url_for('static', filename='images/git.png') }}" 
+                                                     alt="Common Phrases" 
+                                                     class="img-fluid rounded">
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <footer class="mt-5">
+                <div class="container">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <h3 class="h5">Team Members</h3>
+                            <ul class="list-unstyled">
+                                <li>Voladri Manohar Reddy - 21BRS1177</li>
+                                <li>Vaddhauri Raghava Surya Ganesh - 21BRS1614</li>
+                                <li>K Sai Ruthwik Reddy - 21BCE5599</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h3 class="h5">Project Details</h3>
+                            <p>Project-1<br>Course Code: BCES321J</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h3 class="h5">Guide Details</h3>
+                            <p>Dr. Mohan R<br>School: SMEC<br>Cabin: AB1-406A, 3D Printing Lab</p>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Hide loading overlay
+            document.getElementById('loadingOverlay').style.display = 'none';
+
+            const createRoomBtn = document.getElementById('createRoomBtn');
+            const joinRoomBtn = document.getElementById('joinRoomBtn');
+            const roomInput = document.getElementById('room_id');
+            const roomMessage = document.getElementById('roomMessage');
+
+            // Create room function
+            createRoomBtn.addEventListener('click', async function() {
+                try {
+                    showLoading();
+                    createRoomBtn.disabled = true;
+                    
+                    const response = await fetch('/create-room');
+                    const data = await response.json();
+                    
+                    if (data.room_id) {
+                        showMessage('Room created! Joining room...', 'success');
+                        window.location.href = `/room/${data.room_id}`;
+                    } else {
+                        throw new Error('Failed to create room');
+                    }
+                } catch (error) {
+                    console.error('Error creating room:', error);
+                    showMessage('Error creating room. Please try again.', 'error');
+                    createRoomBtn.disabled = false;
+                } finally {
+                    hideLoading();
+                }
+            });
+
+            // Join room function
+            joinRoomBtn.addEventListener('click', function() {
+                const roomCode = roomInput.value.trim().toUpperCase();
+                if (!roomCode) {
+                    showMessage('Please enter a room code', 'error');
+                    return;
+                }
+
+                showLoading();
+                
+                // Create and submit form
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/join-room';
+
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'room_id';
+                input.value = roomCode;
+
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            });
+
+            // Room code input validation
+            roomInput.addEventListener('input', function() {
+                this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                if (this.value.length > 8) {
+                    this.value = this.value.slice(0, 8);
+                }
+            });
+
+            // Handle Enter key
+            roomInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    joinRoomBtn.click();
+                }
+            });
+
+            // Helper functions
+            function showMessage(message, type) {
+                roomMessage.textContent = message;
+                roomMessage.className = `room-message ${type}`;
+                roomMessage.style.display = 'block';
+            }
+
+            function showLoading() {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+            }
+
+            function hideLoading() {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        });
+
+        // Function to join recent room
+        function joinRecentRoom(roomId) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/join-room';
+
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'room_id';
+            input.value = roomId;
+
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
 </body>
 </html>

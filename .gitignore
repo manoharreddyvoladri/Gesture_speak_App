@@ -3,7 +3,7 @@ model/
 *.h5
 venv/
 .env
-ttt.py
+
 
 # Python
 __pycache__/

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Language Detection</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --background-color: #f8fafc;
+            --card-background: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: var(--card-background);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+
+        .video-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .video-container {
+            background: var(--card-background);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .video-feed {
+            width: 100%;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .video-controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            padding: 1rem;
+            background: var(--card-background);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .control-btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1rem;
+            min-width: 150px;
+        }
+
+        .start-btn {
+            background-color: #22c55e;
+            color: white;
+        }
+
+        .start-btn:hover {
+            background-color: #16a34a;
+        }
+
+        .stop-btn {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        .stop-btn:hover {
+            background-color: #dc2626;
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-bar {
+            text-align: center;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background-color: var(--card-background);
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+        }
+
+        .status-text {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-active {
+            background-color: #22c55e;
+        }
+
+        .status-inactive {
+            background-color: #ef4444;
+        }
+
+        .detection-history {
+            background: var(--card-background);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .history-title {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .history-list {
+            list-style: none;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .history-item {
+            padding: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .letter-badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+        }
+
+        .word {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .timestamp {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .stats-container {
+            margin-top: 2rem;
+            background: var(--card-background);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            height: 250px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>GestureSpeak</h1>
+            <p>Real-time sign language interpretation using YOLO5</p>
+        </div>
+
+        <div class="main-content">
+            <div class="video-section">
+                <div class="video-container">
+                    <img class="video-feed" src="{{ url_for('video_feed') }}" alt="Video feed">
+                </div>
+                
+                <div class="status-bar">
+                    <div class="status-text">
+                        <span class="status-indicator status-inactive"></span>
+                        <span id="statusText">Detection Inactive</span>
+                    </div>
+                </div>
+                
+                <div class="video-controls">
+                    <button id="startBtn" class="control-btn start-btn">Start Detection</button>
+                    <button id="stopBtn" class="control-btn stop-btn" disabled>Stop Detection</button>
+                </div>
+            </div>
+
+            <div class="detection-history">
+                <h2 class="history-title">Detection History</h2>
+                <ul class="history-list" id="historyList">
+                    <!-- Detection history will be populated here -->
+                </ul>
+                <div class="stats-container">
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let confidenceChart;
+        let isDetecting = false;
+
+        function initializeChart() {
+            const ctx = document.getElementById('confidenceChart').getContext('2d');
+            confidenceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Confidence',
+                        data: [],
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#2563eb'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 0
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Detection Confidence Over Time',
+                            color: '#1e293b',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value * 100) + '%';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 5,
+                                maxRotation: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateControlState() {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const statusIndicator = document.querySelector('.status-indicator');
+            const statusText = document.getElementById('statusText');
+
+            startBtn.disabled = isDetecting;
+            stopBtn.disabled = !isDetecting;
+
+            statusIndicator.className = `status-indicator ${isDetecting ? 'status-active' : 'status-inactive'}`;
+            statusText.textContent = isDetecting ? 'Detection Active' : 'Detection Inactive';
+        }
+
+        function startDetection() {
+            fetch('/start_prediction')
+                .then(response => response.json())
+                .then(data => {
+                    isDetecting = true;
+                    updateControlState();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function stopDetection() {
+            fetch('/stop_prediction')
+                .then(response => response.json())
+                .then(data => {
+                    isDetecting = false;
+                    updateControlState();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateHistory() {
+            if (!isDetecting) return;
+
+            $.ajax({
+                url: '/get_history',
+                method: 'GET',
+                cache: false,
+                success: function(data) {
+                    const historyList = document.getElementById('historyList');
+                    historyList.innerHTML = '';
+                    
+                    data.forEach(item => {
+                        const li = document.createElement('li');
+                        li.className = 'history-item';
+                        li.innerHTML = `
+                            <span class="letter-badge">${item.letter}</span>
+                            <span class="word">${item.word}</span>
+                            <span class="timestamp">${item.timestamp}</span>
+                        `;
+                        historyList.appendChild(li);
+                    });
+
+                    const recentData = data.slice(-8);
+                    confidenceChart.data.labels = recentData.map(item => item.timestamp);
+                    confidenceChart.data.datasets[0].data = recentData.map(item => item.confidence);
+                    confidenceChart.update('none');
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeChart();
+            
+            // Add event listeners for buttons
+            document.getElementById('startBtn').addEventListener('click', startDetection);
+            document.getElementById('stopBtn').addEventListener('click', stopDetection);
+            
+            // Update history periodically
+            setInterval(updateHistory, 500);
+            
+            // Initialize control state
+            updateControlState();
+        });
+    </script>
+</body>
+</html>

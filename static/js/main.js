@@ -45,7 +45,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     return response.json();
                 })
                 .then(data => {
-                    predictionElement.textContent = data.prediction;
+                    if (predictionElement) {
+                        predictionElement.textContent = data.prediction;
+                    }
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -64,7 +66,6 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => message.remove(), 300);
         }, 3000);
     });
-
     // Room functionality
     const socket = io();
 
@@ -140,38 +141,6 @@ document.addEventListener('DOMContentLoaded', function() {
         joinButton.addEventListener('click', joinRoom);
     }
 
-    // Prediction updates
-    window.updatePrediction = (text, confidence = 0) => {
-        const prediction = document.getElementById('prediction');
-        const progressBar = document.querySelector('.progress-bar');
-        
-        if (prediction) {
-            prediction.textContent = text;
-            prediction.classList.add('animate__animated', 'animate__pulse');
-            
-            setTimeout(() => {
-                prediction.classList.remove('animate__animated', 'animate__pulse');
-            }, 1000);
-        }
-        
-        if (progressBar) {
-            progressBar.style.width = `${confidence}%`;
-        }
-    };
 
-    // Initialize controls
-    const startButton = document.getElementById('startButton');
-    const resetButton = document.getElementById('resetButton');
 
-    if (startButton) {
-        startButton.addEventListener('click', () => {
-            updatePrediction('Ready', 100);
-        });
-    }
-
-    if (resetButton) {
-        resetButton.addEventListener('click', () => {
-            updatePrediction('Waiting...', 0);
-        });
-    }
 });
