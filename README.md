@@ -133,5 +133,3 @@ The application includes a `vercel.json` configuration for deployment on platfor
 GestureSpeak successfully demonstrates the integration of AI with real-time communication tools to enhance accessibility for the deaf and hard of hearing community. With its high accuracy, low latency, and user-friendly interface, GestureSpeak paves the way for inclusive digital interactions.
 
 ---
-
-Let me know if you need further modifications! 🚀
