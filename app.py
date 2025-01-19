@@ -41,7 +41,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'aOJl6xXuAPl9iLjXn8GS7OpXpuv1IUj0')
+app.secret_key = os.getenv('SECRET_KEY', 'aOJ********************')
 app.template_folder = os.path.abspath('templates')
 
 
@@ -256,7 +256,7 @@ except Exception as e:
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'aOJl6xXuAPl9iLjXn8GS7OpXpuv1IUj0')
+app.secret_key = os.getenv('SECRET_KEY', 'aOJl6**********************Uj0')
 
 # Enhanced app configuration
 app.config.update(
@@ -307,7 +307,7 @@ def get_mongo_client():
     retries = 3
     while retries > 0:
         try:
-            mongo_uri = os.getenv('MONGODB_URI', 'mongodb+srv://gesturespeakdb:gesturespeakdb@gsusers.8wjxr.mongodb.net/')
+            mongo_uri = os.getenv(MONGODB_URI)
             client = MongoClient(mongo_uri)
             client.admin.command('ping')
             logger.info("Successfully connected to MongoDB")
