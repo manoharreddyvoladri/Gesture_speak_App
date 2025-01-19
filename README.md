@@ -1,6 +1,6 @@
 ---
 
-# GestureSpeak: AI-Powered Real-Time Sign Language Translation Application
+# GestureSpeak: Bridging Communication Gaps with AI-Powered Sign Language Translation and Real-Time Video Conferencing
 
 ## **Overview**
 GestureSpeak is an AI-powered platform designed to provide real-time sign language detection and translation. This application bridges communication gaps by integrating advanced deep learning models with a user-friendly interface. The system processes live video streams, detects sign language using YOLOv5, and translates it into text in real-time.
