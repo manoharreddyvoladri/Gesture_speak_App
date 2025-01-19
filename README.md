@@ -1,5 +1,3 @@
-Here’s an updated `README.md` tailored to your project's structure and functionality, reflecting the simplified usage without references to React or Node.js:
-
 ---
 
 # GestureSpeak: AI-Powered Real-Time Sign Language Translation Application
@@ -55,10 +53,7 @@ manoharreddyvoladri-gesture_speak_app/
 │   ├── register.html
 │   ├── room.html
 │   └── verify_otp.html
-└── test/              # Test files
-    ├── app.py
-    ├── best.pt
-    └── index.html
+└── test.py
 ```
 
 ---
@@ -131,26 +126,6 @@ pip install -r requirements.txt
 
 ## **Deployment**
 The application includes a `vercel.json` configuration for deployment on platforms like Vercel. Ensure all dependencies and configurations are properly set before deployment.
-
----
-
-## **Team**
-- **V. R Surya Ganesh** - 21BRS1614
-- **Sai Ruthwik** - 21BCE5539
-- **Manohar Reddy** - 21BRS1177
-
-**Guide**:  
-- **Dr. Mohan R**, SMEC  
-- **Cabin**: AB1-406A, 3D Printing Lab
-
----
-
-## **References**
-1. Koller, O., et al. (2019). Deep Sign: Hybrid CNN-HMM for Continuous Sign Language Recognition.  
-2. Pu, J., et al. (2020). Sign language recognition based on hand gesture and movement data.  
-3. Jiang, Y., et al. (2020). Dynamic gesture recognition using two-stream RNN.  
-4. Kumar, N., et al. (2021). Real-Time Sign Language Recognition Using CNN.  
-5. Mitra, S., et al. (2021). Gesture recognition: A survey.  
 
 ---
 
