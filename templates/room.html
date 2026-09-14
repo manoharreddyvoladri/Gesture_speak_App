@@ -419,6 +419,68 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             font-size: 0.9rem;
         }
+
+        /* Waiting room tab (host only) */
+        .waiting-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: var(--su-danger);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            margin-left: 0.35rem;
+        }
+
+        .waiting-empty {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.875rem;
+            padding: 1rem 0.25rem;
+        }
+
+        .waiting-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.75rem 0.25rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .waiting-item-name {
+            font-size: 0.9rem;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .waiting-item-actions {
+            display: flex;
+            gap: 0.4rem;
+            flex-shrink: 0;
+        }
+
+        .waiting-item-actions button {
+            border: none;
+            border-radius: var(--su-radius-sm);
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            color: #fff;
+            font-size: 0.8rem;
+        }
+
+        .waiting-approve { background: var(--su-success); }
+        .waiting-approve:hover { background: var(--su-success-hover); }
+        .waiting-reject { background: var(--su-danger); }
+        .waiting-reject:hover { background: var(--su-danger-hover); }
+        .waiting-hold { background: rgba(255, 255, 255, 0.15); }
+        .waiting-hold:hover { background: rgba(255, 255, 255, 0.25); }
     </style>
 </head>
 <body class="conference-body">
@@ -472,6 +534,12 @@
                     <button class="tab-btn" data-tab="participants">
                         <i class="fas fa-users"></i> People
                     </button>
+                    {% if username == room_data.creator %}
+                    <button class="tab-btn" data-tab="waiting">
+                        <i class="fas fa-clock"></i> Waiting
+                        <span id="waitingBadge" class="waiting-badge" style="display: none;">0</span>
+                    </button>
+                    {% endif %}
                 </div>
 
                 <!-- Tab Content -->
@@ -491,6 +559,15 @@
                     <div id="participants" class="tab-pane">
                         <div class="participants-list" id="participantsList"></div>
                     </div>
+
+                    {% if username == room_data.creator %}
+                    <!-- Waiting Room Tab (host only) -->
+                    <div id="waiting" class="tab-pane">
+                        <div class="waiting-list" id="waitingList">
+                            <p class="waiting-empty" id="waitingEmpty">No one is waiting to join.</p>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -579,6 +656,7 @@
         const ROOM_ID = "{{ room_id }}";
         const USERNAME = "{{ username }}";
         const ROOM_LINK = "{{ room_link }}";
+        const IS_HOST = {{ 'true' if username == room_data.creator else 'false' }};
     </script>
     <script src="{{ url_for('static', filename='js/call.js') }}"></script>
 
@@ -666,6 +744,65 @@
                     window.sendMessage();
                 }
             });
+
+            // Waiting room (host only) - people on the lobby page asking to join
+            if (IS_HOST) {
+                const waitingList = document.getElementById('waitingList');
+                const waitingEmpty = document.getElementById('waitingEmpty');
+                const waitingBadge = document.getElementById('waitingBadge');
+                const pendingRequests = new Set();
+
+                function updateWaitingBadge() {
+                    const count = pendingRequests.size;
+                    if (waitingBadge) {
+                        waitingBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+                        waitingBadge.textContent = count;
+                    }
+                    if (waitingEmpty) {
+                        waitingEmpty.style.display = count > 0 ? 'none' : 'block';
+                    }
+                }
+
+                function renderWaitingItem(sid, name) {
+                    const item = document.createElement('div');
+                    item.className = 'waiting-item';
+                    item.id = `waiting-${sid}`;
+                    item.innerHTML = `
+                        <span class="waiting-item-name">${escapeHtml(name)}</span>
+                        <div class="waiting-item-actions">
+                            <button class="waiting-approve" title="Approve"><i class="fas fa-check"></i></button>
+                            <button class="waiting-hold" title="Hold"><i class="fas fa-pause"></i></button>
+                            <button class="waiting-reject" title="Reject"><i class="fas fa-xmark"></i></button>
+                        </div>
+                    `;
+                    const respond = (action) => {
+                        window.videoCall?.socket.emit('respond_to_request', { room: ROOM_ID, sid, action });
+                        if (action !== 'hold') {
+                            pendingRequests.delete(sid);
+                            item.remove();
+                            updateWaitingBadge();
+                        }
+                    };
+                    item.querySelector('.waiting-approve').addEventListener('click', () => respond('approve'));
+                    item.querySelector('.waiting-reject').addEventListener('click', () => respond('reject'));
+                    item.querySelector('.waiting-hold').addEventListener('click', () => respond('hold'));
+                    waitingList.appendChild(item);
+                }
+
+                const attachWaitingListener = () => {
+                    if (!window.videoCall?.socket) {
+                        setTimeout(attachWaitingListener, 100);
+                        return;
+                    }
+                    window.videoCall.socket.on('join_request', (data) => {
+                        if (pendingRequests.has(data.sid)) return;
+                        pendingRequests.add(data.sid);
+                        renderWaitingItem(data.sid, data.name);
+                        updateWaitingBadge();
+                    });
+                };
+                attachWaitingListener();
+            }
         });
 
     </script>

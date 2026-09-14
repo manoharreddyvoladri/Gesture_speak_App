@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting to join - SyncUp</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/manrope.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/syncup.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+    <script src="{{ url_for('static', filename='vendor/socketio/socket.io.min.js') }}"></script>
+    <style>
+        body {
+            background: var(--su-bg);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        .lobby-card {
+            width: 100%;
+            max-width: 420px;
+            padding: 2.5rem;
+            text-align: center;
+        }
+
+        .lobby-card .su-logo {
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .lobby-room-id {
+            color: var(--su-text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .lobby-room-id strong {
+            color: var(--su-text);
+        }
+
+        #nameStep .su-input {
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .lobby-status {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 0;
+        }
+
+        .lobby-status.active {
+            display: flex;
+        }
+
+        .lobby-status .spinner {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid var(--su-border);
+            border-top-color: var(--su-primary);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .lobby-status.rejected .status-icon {
+            color: var(--su-danger);
+            font-size: 2rem;
+        }
+
+        .lobby-status.approved .status-icon {
+            color: var(--su-success);
+            font-size: 2rem;
+        }
+
+        .lobby-error {
+            color: var(--su-danger);
+            font-size: 0.875rem;
+            margin-top: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="su-card lobby-card">
+        <span class="su-logo">
+            <span class="su-logo-mark">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="6" width="12" height="12" rx="3" stroke="currentColor" stroke-width="2"/>
+                    <path d="M15 9.5l5-3v11l-5-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="su-logo-word">SyncUp</span>
+        </span>
+
+        <p class="lobby-room-id">Joining room <strong>{{ room_id }}</strong></p>
+
+        <div id="nameStep">
+            {% if is_authenticated %}
+                <p>Continuing as <strong>{{ username }}</strong></p>
+            {% else %}
+                <input type="text" id="guestName" class="su-input" placeholder="Your name" maxlength="50" autofocus>
+            {% endif %}
+            <button id="askToJoin" class="su-btn su-btn-primary" style="width: 100%;">
+                Ask to join
+            </button>
+        </div>
+
+        <div id="waitingStatus" class="lobby-status">
+            <div class="spinner"></div>
+            <p id="statusMessage">Waiting for the host to let you in...</p>
+        </div>
+
+        <div id="rejectedStatus" class="lobby-status rejected">
+            <i class="fas fa-circle-xmark status-icon"></i>
+            <p>Your request to join was declined.</p>
+            <button id="tryAgain" class="su-btn su-btn-secondary">Try again</button>
+        </div>
+
+        <div id="approvedStatus" class="lobby-status approved">
+            <i class="fas fa-circle-check status-icon"></i>
+            <p>You're in - joining now...</p>
+        </div>
+
+        <p class="lobby-error" id="lobbyError"></p>
+    </div>
+
+    <script>
+        const ROOM_ID = "{{ room_id }}";
+        const IS_AUTHENTICATED = {{ 'true' if is_authenticated else 'false' }};
+
+        const nameStep = document.getElementById('nameStep');
+        const waitingStatus = document.getElementById('waitingStatus');
+        const rejectedStatus = document.getElementById('rejectedStatus');
+        const approvedStatus = document.getElementById('approvedStatus');
+        const lobbyError = document.getElementById('lobbyError');
+        const statusMessage = document.getElementById('statusMessage');
+
+        function showError(message) {
+            lobbyError.textContent = message;
+            lobbyError.style.display = 'block';
+        }
+
+        function showStep(step) {
+            [nameStep, waitingStatus, rejectedStatus, approvedStatus].forEach(el => {
+                el.classList.remove('active');
+                el.style.display = 'none';
+            });
+            if (step === nameStep) {
+                step.style.display = 'block';
+            } else {
+                step.classList.add('active');
+            }
+        }
+
+        const socket = io({
+            transports: ['websocket'],
+            upgrade: false,
+            reconnection: true
+        });
+
+        let currentName = '';
+
+        socket.on('join_response', (data) => {
+            if (data.status === 'approved') {
+                showStep(approvedStatus);
+                fetch(`/room/${ROOM_ID}/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sid: socket.id, name: currentName })
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'ok') {
+                            window.location.href = `/room/${ROOM_ID}`;
+                        } else {
+                            showStep(nameStep);
+                            showError('Could not confirm approval - please try again.');
+                        }
+                    })
+                    .catch(() => {
+                        showStep(nameStep);
+                        showError('Could not confirm approval - please try again.');
+                    });
+            } else if (data.status === 'rejected') {
+                showStep(rejectedStatus);
+            } else if (data.status === 'held') {
+                statusMessage.textContent = 'The host asked you to wait a moment...';
+                showStep(waitingStatus);
+            }
+        });
+
+        socket.on('connect_error', () => {
+            showError('Connection problem - please check your network and try again.');
+        });
+
+        function askToJoin() {
+            lobbyError.style.display = 'none';
+            let name;
+            if (IS_AUTHENTICATED) {
+                name = "{{ username }}";
+            } else {
+                const input = document.getElementById('guestName');
+                name = input.value.trim();
+                if (!name) {
+                    showError('Please enter your name.');
+                    return;
+                }
+            }
+            currentName = name;
+            statusMessage.textContent = 'Waiting for the host to let you in...';
+            socket.emit('join_request', {
+                room: ROOM_ID,
+                name: name,
+                is_guest: !IS_AUTHENTICATED
+            });
+            showStep(waitingStatus);
+        }
+
+        document.getElementById('askToJoin').addEventListener('click', askToJoin);
+        document.getElementById('tryAgain').addEventListener('click', () => showStep(nameStep));
+
+        const guestNameInput = document.getElementById('guestName');
+        if (guestNameInput) {
+            guestNameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') askToJoin();
+            });
+        }
+    </script>
+</body>
+</html>

@@ -437,6 +437,7 @@ def create_room():
     try:
         room_id = generate_room_code()
         current_time = datetime.utcnow()
+        require_login = request.args.get('require_login') == '1'
 
         room_data = {
             "room_id": room_id,
@@ -447,7 +448,8 @@ def create_room():
             "participants": [current_user.id],
             "settings": {
                 "max_participants": 5,
-                "enable_chat": True
+                "enable_chat": True,
+                "require_login": require_login
             }
         }
 
@@ -480,15 +482,9 @@ def join_room():
             flash('Room not found or inactive', 'error')
             return redirect(url_for('dashboard'))
 
-        if current_user.id not in room['participants']:
-            rooms_collection.update_one(
-                {"room_id": room_id},
-                {
-                    "$push": {"participants": current_user.id},
-                    "$set": {"last_activity": datetime.utcnow()}
-                }
-            )
-
+        # Participants are only added once the host actually approves them
+        # (see room()/room_lobby()) - just hand off to that gate here rather
+        # than admitting them directly.
         return redirect(url_for('room', room_id=room_id))
     except Exception as e:
         logger.error(f"Room joining error: {e}")
@@ -496,8 +492,40 @@ def join_room():
         return redirect(url_for('dashboard'))
 
 
+@app.route('/room/<room_id>/lobby')
+def room_lobby(room_id):
+    try:
+        room = rooms_collection.find_one({
+            "room_id": room_id,
+            "active": True
+        })
+
+        if not room:
+            flash('Room not found or inactive', 'error')
+            return redirect(url_for('land'))
+
+        # Host and anyone already approved this session skip the lobby.
+        if current_user.is_authenticated and current_user.id == room['creator']:
+            return redirect(url_for('room', room_id=room_id))
+        if session.get(f'room_approved_{room_id}'):
+            return redirect(url_for('room', room_id=room_id))
+
+        require_login = room.get('settings', {}).get('require_login', False)
+        if require_login and not current_user.is_authenticated:
+            next_url = url_for('room_lobby', room_id=room_id)
+            return redirect(url_for('login', next=next_url))
+
+        return render_template('lobby.html',
+                            room_id=room_id,
+                            is_authenticated=current_user.is_authenticated,
+                            username=current_user.id if current_user.is_authenticated else None)
+    except Exception as e:
+        logger.error(f"Room lobby error: {e}")
+        flash("Error accessing room", "error")
+        return redirect(url_for('land'))
+
+
 @app.route('/room/<room_id>')
-@login_required
 def room(room_id):
     try:
         room = rooms_collection.find_one({
@@ -507,37 +535,48 @@ def room(room_id):
 
         if not room:
             flash('Room not found or inactive', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard') if current_user.is_authenticated else url_for('land'))
 
-        # This URL doubles as the shareable "meet link" - anyone logged in
-        # who opens it joins the room, the same way a Google Meet link works,
-        # rather than only being reachable via the dashboard's join form.
-        if current_user.id not in room['participants']:
-            max_participants = room.get('settings', {}).get('max_participants', 5)
-            if len(room['participants']) >= max_participants:
-                flash('This room is full', 'error')
-                return redirect(url_for('dashboard'))
+        is_host = current_user.is_authenticated and current_user.id == room['creator']
+        is_approved = bool(session.get(f'room_approved_{room_id}'))
 
+        if not (is_host or is_approved):
+            return redirect(url_for('room_lobby', room_id=room_id))
+
+        if is_host:
+            identity = current_user.id
+        elif current_user.is_authenticated:
+            identity = current_user.id
+        else:
+            guest_name = session.get('guest_name')
+            guest_id = session.get('guest_id')
+            if not guest_name or not guest_id:
+                # Approved flag with no guest identity shouldn't normally
+                # happen - fall back to the lobby to establish one.
+                return redirect(url_for('room_lobby', room_id=room_id))
+            identity = f"{guest_name}#{guest_id}"
+
+        if identity not in room['participants']:
             rooms_collection.update_one(
                 {"room_id": room_id},
                 {
-                    "$push": {"participants": current_user.id},
+                    "$push": {"participants": identity},
                     "$set": {"last_activity": datetime.utcnow()}
                 }
             )
-            room['participants'] = room['participants'] + [current_user.id]
+            room['participants'] = room['participants'] + [identity]
 
         room_link = request.host_url.rstrip('/') + url_for('room', room_id=room_id)
 
         return render_template('room.html',
                             room_id=room_id,
-                            username=current_user.id,
+                            username=identity,
                             room_data=room,
                             room_link=room_link)
     except Exception as e:
         logger.error(f"Room access error: {e}")
         flash("Error accessing room", "error")
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard') if current_user.is_authenticated else url_for('land'))
 
 
 @app.route('/logout')
@@ -583,7 +622,32 @@ def internal_error(error):
 # instance created above (previously this created a second, independent
 # SocketIO() bound to the same app, silently orphaning this app's socket
 # handlers and half the app's config).
-socketio = init_video_call(app, socketio)
+socketio, _consume_approved_sid = init_video_call(app, socketio)
+
+
+@app.route('/room/<room_id>/confirm', methods=['POST'])
+def room_confirm(room_id):
+    """The lobby page calls this after the host approves it over the
+    socket - a real HTTP POST, not another socket message, so the session
+    cookie actually gets set (see call.py's consume_approved_sid for why).
+    Only succeeds if the host genuinely approved this exact browser."""
+    try:
+        data = request.get_json(silent=True) or {}
+        sid = data.get('sid')
+        if not sid or not _consume_approved_sid(room_id, sid):
+            return jsonify({'status': 'error', 'message': 'Not approved'}), 403
+
+        if not current_user.is_authenticated:
+            name = str(data.get('name', '')).strip()[:50] or 'Guest'
+            if not session.get('guest_id'):
+                session['guest_id'] = secrets.token_hex(3)
+            session['guest_name'] = name
+
+        session[f'room_approved_{room_id}'] = True
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        logger.error(f"Room confirm error: {e}")
+        return jsonify({'status': 'error', 'message': 'Server error'}), 500
 
 
 def cleanup_inactive_rooms():

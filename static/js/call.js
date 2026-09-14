@@ -29,9 +29,10 @@ const peerConfiguration = {
 };
 
 class VideoCall {
-    constructor(roomId, username) {
+    constructor(roomId, username, isHost = false) {
         this.roomId = roomId;
         this.username = username;
+        this.isHost = isHost;
         this.peers = {};
         this.localStream = null;
         this.socket = io({
@@ -448,7 +449,8 @@ class VideoCall {
         console.log('Joining room:', this.roomId);
         this.socket.emit('join_room', {
             room: this.roomId,
-            username: this.username
+            username: this.username,
+            is_host: this.isHost
         });
     }
 
@@ -713,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Create video call instance
-    window.videoCall = new VideoCall(ROOM_ID, USERNAME);
+    window.videoCall = new VideoCall(ROOM_ID, USERNAME, typeof IS_HOST !== 'undefined' && IS_HOST);
 
     // Setup control buttons
     document.getElementById('toggle-video')?.addEventListener('click', function() {
