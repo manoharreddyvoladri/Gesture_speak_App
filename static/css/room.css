@@ -35,7 +35,8 @@ body {
     grid-template-columns: 1fr 300px;
     gap: 1rem;
     padding: 1rem;
-    height: calc(100vh - 120px);
+    min-height: 0;
+    height: 100%;
     overflow: hidden;
 }
 

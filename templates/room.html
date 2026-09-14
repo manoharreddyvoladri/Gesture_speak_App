@@ -87,7 +87,16 @@
             grid-template-columns: 1fr 300px;
             gap: 1rem;
             padding: 1rem;
-            height: calc(100vh - 120px);
+            /* Was height: calc(100vh - 120px) - a magic-number guess at the
+               info-bar + controls-bar height that doesn't track mobile
+               Chrome's address bar shrinking/growing the real viewport,
+               and could push the controls bar past the clipped edge
+               entirely. This grid row (the middle "1fr" track of
+               .conference-container) already has a definite height from
+               the grid itself - min-height:0 is the standard fix for grid/
+               flex items that don't shrink to their track size by default. */
+            min-height: 0;
+            height: 100%;
             overflow: hidden;
         }
 
@@ -229,9 +238,11 @@
             z-index: 1100;
             background: #161616;
             padding: 1rem;
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
             display: flex;
             justify-content: center;
             gap: 2rem;
+            flex-wrap: wrap;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
