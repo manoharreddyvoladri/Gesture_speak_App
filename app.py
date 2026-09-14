@@ -1,37 +1,33 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask import Flask, render_template, Response, jsonify
 from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO
 from flask_cors import CORS
-from OpenSSL import SSL
 import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
 from twilio.rest import Client
-import random
+import secrets
 import string
 from pymongo import MongoClient
 from datetime import datetime, timedelta
 import base64
 import os
+import socket
 import logging
 import gdown
 from dotenv import load_dotenv
 from call import init_video_call
-import threading
-import queue
-from ultralytics import YOLO
-import time
-import socket
-import eventlet
+
 # Load environment variables
 load_dotenv()
 
 # Configure logging
 logging.basicConfig(
     level=os.getenv('LOG_LEVEL', 'INFO'),
-    filename=os.getenv('LOG_FILE', 'app.log'),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
@@ -40,274 +36,87 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'aOJl6xXuAPl9iLjXn8GS7OpXpuv1IUj0')
-app.template_folder = os.path.abspath('templates')
-
-
-
-
-
-
-
-
-
-
-
-
-# Initialize YOLO model
-model = YOLO('best.pt')
-
-# Global variables
-detection_history = []
-frame_queue = queue.Queue(maxsize=2)
-prediction_queue = queue.Queue(maxsize=2)
-is_predicting = False
-
-LETTER_TO_WORD = {
-    'A': 'APPLE', 'B': 'BOOK', 'C': 'CAT', 'D': 'DOG',
-    'E': 'ELEPHANT', 'F': 'FRIEND', 'G': 'GOOD', 'H': 'HELLO',
-    'I': 'ICE CREAM', 'J': 'JUMP', 'K': 'KING', 'L': 'LOVE',
-    'M': 'MOTHER', 'N': 'NICE', 'O': 'ORANGE', 'P': 'PLEASE',
-    'Q': 'QUEEN', 'R': 'RAINBOW', 'S': 'SUN', 'T': 'THANK YOU',
-    'U': 'UMBRELLA', 'V': 'VICTORY', 'W': 'WATER', 'X': 'X-RAY',
-    'Y': 'YELLOW', 'Z': 'ZEBRA'
-}
-
-class VideoCamera:
-    def __init__(self):
-        self.video = cv2.VideoCapture(0)
-        self.video.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self.video.set(cv2.CAP_PROP_FPS, 30)
-        self.last_prediction_time = time.time()
-        self.current_prediction = None
-        self.current_word = None
-        self.current_bbox = None
-        self.running = True
-        
-        self.prediction_thread = threading.Thread(target=self.predict_frames)
-        self.prediction_thread.daemon = True
-        self.prediction_thread.start()
-
-    def __del__(self):
-        self.running = False
-        if self.video.isOpened():
-            self.video.release()
-
-    def predict_frames(self):
-        while self.running:
-            if not is_predicting:
-                time.sleep(0.1)
-                continue
-                
-            try:
-                frame = frame_queue.get_nowait()
-                current_time = time.time()
-                
-                if current_time - self.last_prediction_time >= 0.5:
-                    results = model(frame, conf=0.3)
-                    
-                    if len(results[0].boxes) > 0:
-                        confidences = results[0].boxes.conf.cpu().numpy()
-                        max_conf_idx = np.argmax(confidences)
-                        prediction = results[0].names[int(results[0].boxes.cls[max_conf_idx])]
-                        bbox = results[0].boxes.xyxy[max_conf_idx].cpu().numpy()
-                        word = LETTER_TO_WORD.get(prediction, "Unknown")
-                        confidence = float(confidences[max_conf_idx])
-                        
-                        prediction_data = {
-                            'prediction': prediction,
-                            'word': word,
-                            'bbox': bbox,
-                            'confidence': confidence
-                        }
-                        
-                        try:
-                            prediction_queue.put_nowait(prediction_data)
-                        except queue.Full:
-                            pass
-                        
-                        detection_history.append({
-                            'letter': prediction,
-                            'word': word,
-                            'confidence': confidence,
-                            'timestamp': datetime.now().strftime("%H:%M:%S")
-                        })
-                        if len(detection_history) > 10:
-                            detection_history.pop(0)
-                        
-                        self.last_prediction_time = current_time
-            except queue.Empty:
-                time.sleep(0.01)
-
-    def get_frame(self):
-        success, frame = self.video.read()
-        if not success:
-            return None
-
-        try:
-            frame_queue.put_nowait(frame.copy())
-        except queue.Full:
-            pass
-
-        if is_predicting:
-            try:
-                prediction_data = prediction_queue.get_nowait()
-                self.current_prediction = prediction_data['prediction']
-                self.current_word = prediction_data['word']
-                self.current_bbox = prediction_data['bbox']
-            except queue.Empty:
-                pass
-
-            if self.current_bbox is not None:
-                x1, y1, x2, y2 = map(int, self.current_bbox)
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                label = f"{self.current_prediction} - {self.current_word}"
-                cv2.putText(frame, label, (x1, y1-10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
-        _, jpeg = cv2.imencode('.jpg', frame, encode_param)
-        return jpeg.tobytes()
-
-camera = None
-
-def get_camera():
-    global camera
-    if camera is None:
-        camera = VideoCamera()
-    return camera
-
-
-# Add this before your routes in app.py
-@app.before_request
-def force_https():
-    if not request.is_secure and app.env != 'development' and request.headers.get('X-Forwarded-Proto', 'http') == 'http':
-        url = request.url.replace('http://', 'https://', 1)
-        return redirect(url, code=301)
-
-
-
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen(get_camera()),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/get_history')
-def get_history():
-    return jsonify(detection_history)
-
-@app.route('/start_prediction')
-def start_prediction():
-    global is_predicting
-    is_predicting = True
-    return jsonify({'status': 'success'})
-
-@app.route('/stop_prediction')
-def stop_prediction():
-    global is_predicting
-    is_predicting = False
-    return jsonify({'status': 'success'})
-
-def gen(camera):
-    while True:
-        frame = camera.get_frame()
-        if frame is not None:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Update model download function with new configuration
-def download_model_from_gdrive():
-    """Download the ASL model from Google Drive if not present."""
-    try:
-        model_path = os.getenv('MODEL_PATH', 'asl_model1.h5')
-        if not os.path.exists(model_path):
-            logger.info("Downloading ASL model from Google Drive...")
-            url = os.getenv('MODEL_DOWNLOAD_URL', 
-                          'https://drive.google.com/uc?id=1HaKX9r7D7F_xXH0yp5rDehMdjdNAfchl')
-            gdown.download(url, model_path, quiet=False)
-            logger.info("Model downloaded successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Error downloading model: {e}")
-        return False
-try:
-    mongo_client = MongoClient(os.getenv('MONGODB_URI'))
-    db = mongo_client[os.getenv('MONGODB_DB_NAME', 'gesturespeakdb')]
-    users_collection = db["users"]
-    rooms_collection = db["rooms"]
-    predictions_collection = db["predictions"]
-    logger.info("Successfully connected to MongoDB")
-except Exception as e:
-    logger.error(f"MongoDB connection error: {e}")
-    raise
-
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'aOJl6xXuAPl9iLjXn8GS7OpXpuv1IUj0')
+app.template_folder = os.path.abspath('templates')
+app.secret_key = os.getenv('SECRET_KEY')
+if not app.secret_key:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. Refusing to start with an "
+        "insecure default secret key."
+    )
+
+
+def _is_secure_cookies_enabled():
+    return os.getenv('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
+
+
+def _parse_cors_origins():
+    """Read allowed origins from env. '*' disables credentialed CORS (the two
+    are mutually exclusive - browsers reject a wildcard origin combined with
+    credentials)."""
+    origins = os.getenv('CORS_ALLOWED_ORIGINS', '*').strip()
+    if origins == '*' or not origins:
+        return '*'
+    return [o.strip() for o in origins.split(',') if o.strip()]
+
+
+cors_origins = _parse_cors_origins()
+allow_credentialed_cors = cors_origins != '*'
 
 # Enhanced app configuration
 app.config.update(
-    SESSION_COOKIE_SECURE=False,
+    SESSION_COOKIE_SECURE=_is_secure_cookies_enabled(),
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
-    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+    SESSION_COOKIE_SAMESITE=os.getenv('SESSION_COOKIE_SAMESITE', 'Lax'),
+    PERMANENT_SESSION_LIFETIME=timedelta(days=int(os.getenv('SESSION_LIFETIME_DAYS', '7'))),
     MAX_CONTENT_LENGTH=16 * 1024 * 1024,
     MAX_ROOM_PARTICIPANTS=int(os.getenv('MAX_ROOM_PARTICIPANTS', '5')),
     ROOM_TIMEOUT_HOURS=int(os.getenv('ROOM_TIMEOUT_HOURS', '24')),
-    SOCKET_TIMEOUT=60,  # Fixed default value
     SESSION_COOKIE_PATH='/',
     SESSION_COOKIE_DOMAIN=None,
-    REMEMBER_COOKIE_SECURE=False,
+    REMEMBER_COOKIE_SECURE=_is_secure_cookies_enabled(),
     REMEMBER_COOKIE_HTTPONLY=True
 )
 
-
-# Add CORS configuration
+# CORS configuration
 CORS(app, resources={
     r"/*": {
-        "origins": "*",
+        "origins": cors_origins,
         "allow_headers": ["Content-Type"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "supports_credentials": True
+        "supports_credentials": allow_credentialed_cors
     }
 })
 
-# Update your SocketIO initialization with new configurations
+# Single SocketIO instance for the whole app (video-call signaling is wired
+# onto this same instance via init_video_call, not a second SocketIO()).
 socketio = SocketIO(
-    app, 
-    cors_allowed_origins="*",
+    app,
+    cors_allowed_origins=cors_origins,
     ping_timeout=60,
     ping_interval=25,
     async_mode='eventlet',
     logger=True,
-    engineio_logger=True,
+    engineio_logger=False,
     allow_upgrades=True
 )
+
 # Initialize Login Manager
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'land'
 bcrypt = Bcrypt(app)
 
+
 # Database connection with retry
 def get_mongo_client():
     retries = 3
     while retries > 0:
         try:
-            mongo_uri = os.getenv('MONGODB_URI', 'mongodb+srv://gesturespeakdb:gesturespeakdb@gsusers.8wjxr.mongodb.net/')
+            mongo_uri = os.getenv('MONGODB_URI')
+            if not mongo_uri:
+                raise RuntimeError("MONGODB_URI environment variable is not set")
             client = MongoClient(mongo_uri)
             client.admin.command('ping')
             logger.info("Successfully connected to MongoDB")
@@ -318,21 +127,16 @@ def get_mongo_client():
                 logger.error(f"Failed to connect to MongoDB after 3 attempts: {e}")
                 raise
             logger.warning(f"MongoDB connection attempt failed, retrying... ({3-retries}/3)")
-    return None
 
-try:
-    mongo_client = get_mongo_client()
-    db = mongo_client[os.getenv('MONGODB_DB_NAME', 'gesturespeakdb')]
-    users_collection = db["users"]
-    rooms_collection = db["rooms"]
-    predictions_collection = db["predictions"]
-    logger.info("MongoDB collections initialized")
-except Exception as e:
-    logger.error(f"MongoDB initialization error: {e}")
-    raise
+
+mongo_client = get_mongo_client()
+db = mongo_client[os.getenv('MONGODB_DB_NAME', 'gesturespeakdb')]
+users_collection = db["users"]
+rooms_collection = db["rooms"]
+predictions_collection = db["predictions"]
+logger.info("MongoDB collections initialized")
 
 # Twilio client initialization
-# Update Twilio configuration
 try:
     twilio_client = Client(
         os.getenv('TWILIO_ACCOUNT_SID'),
@@ -343,19 +147,35 @@ except Exception as e:
     logger.error(f"Twilio initialization error: {e}")
     twilio_client = None
 
-# Load ASL model with retry and download
+
+def download_model_from_gdrive():
+    """Download the ASL model from Google Drive if not present."""
+    try:
+        model_path = os.getenv('MODEL_PATH', 'asl_model1.h5')
+        if not os.path.exists(model_path):
+            logger.info("Downloading ASL model from Google Drive...")
+            url = os.getenv('MODEL_DOWNLOAD_URL',
+                          'https://drive.google.com/uc?id=1HaKX9r7D7F_xXH0yp5rDehMdjdNAfchl')
+            gdown.download(url, model_path, quiet=False)
+            logger.info("Model downloaded successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error downloading model: {e}")
+        return False
+
+
 def load_asl_model():
     retries = 3
     while retries > 0:
         try:
-            model_path = 'asl_model1.h5'
+            model_path = os.getenv('MODEL_PATH', 'asl_model1.h5')
             if not os.path.exists(model_path):
                 if not download_model_from_gdrive():
                     raise Exception("Failed to download model")
-                
-            model = load_model(model_path)
+
+            loaded_model = load_model(model_path)
             logger.info(f"Successfully loaded ASL model from {model_path}")
-            return model
+            return loaded_model
         except Exception as e:
             retries -= 1
             if retries == 0:
@@ -364,10 +184,11 @@ def load_asl_model():
             logger.warning(f"Model loading attempt failed, retrying... ({3-retries}/3)")
     return None
 
+
 try:
     model = load_asl_model()
     class_map = ["A", "B", "C", "D", "E", "F", "G", "H", "Hello", "I", "I Love You",
-                "J", "K", "L", "M", "N", "No", "O", "P", "Q", "R", "S", "Space", 
+                "J", "K", "L", "M", "N", "No", "O", "P", "Q", "R", "S", "Space",
                 "T", "U", "V", "W", "X", "Y", "Yes", "Z"]
 except Exception as e:
     logger.error(f"Model loading error: {e}")
@@ -380,7 +201,7 @@ class User(UserMixin):
         self.user_data = user_data or {}
 
     def get_id(self):
-        return str(self.id)  # Make sure it returns a string
+        return str(self.id)
 
     def is_authenticated(self):
         return True
@@ -390,19 +211,6 @@ class User(UserMixin):
 
     def is_anonymous(self):
         return False
-
-@socketio.on('sign_prediction')
-def handle_sign_prediction(data):
-    try:
-        room_id = data['room']
-        emit('sign_prediction', {
-            'username': data['username'],
-            'prediction': data['prediction'],
-            'confidence': data['confidence'],
-            'timestamp': data['timestamp']
-        }, room=room_id)
-    except Exception as e:
-        logger.error(f"Error handling sign prediction: {e}")
 
 
 @login_manager.user_loader
@@ -416,6 +224,7 @@ def load_user(username):
         logger.error(f"Error loading user: {e}")
         return None
 
+
 def preprocess_frame(frame):
     try:
         resized = cv2.resize(frame, (224, 224))
@@ -425,16 +234,19 @@ def preprocess_frame(frame):
         logger.error(f"Frame preprocessing error: {e}")
         return None
 
+
 def generate_otp():
-    """Generate a secure OTP."""
-    return random.randint(100000, 999999)
+    """Generate a cryptographically secure 6-digit OTP."""
+    return secrets.randbelow(900000) + 100000
+
 
 def generate_room_code():
     """Generate a unique room code."""
     while True:
-        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
         if not rooms_collection.find_one({"room_id": code}):
             return code
+
 
 def send_otp(phone_number, otp):
     """Send OTP via Twilio."""
@@ -443,9 +255,9 @@ def send_otp(phone_number, otp):
         return False
 
     try:
-        message = twilio_client.messages.create(
+        twilio_client.messages.create(
             body=f"Your GestureSpeak verification code is: {otp}",
-            from_=os.getenv('TWILIO_PHONE_NUMBER', '+17407600895'),
+            from_=os.getenv('TWILIO_PHONE_NUMBER'),
             to=f'+91{phone_number}'
         )
         logger.info(f"OTP sent successfully to {phone_number}")
@@ -453,12 +265,32 @@ def send_otp(phone_number, otp):
     except Exception as e:
         logger.error(f"Failed to send OTP: {e}")
         return False
+
+
+@app.before_request
+def force_https():
+    if os.getenv('FLASK_ENV', 'production') == 'development':
+        return
+    if request.is_secure:
+        return
+    if request.headers.get('X-Forwarded-Proto', 'http') != 'https':
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
+
+
+@app.before_request
+def refresh_session():
+    if current_user.is_authenticated:
+        session.permanent = True
+
+
 # Routes
 @app.route('/')
 def land():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template('land.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -469,35 +301,30 @@ def login():
         try:
             username = request.form['username']
             password = request.form['password']
-            remember = request.form.get('remember', False)  # Add this
+            remember = request.form.get('remember') in ('on', 'true', '1', 'yes')
             user = users_collection.find_one({"username": username})
 
             if user and bcrypt.check_password_hash(user['password'], password):
                 user_obj = User(username)
-                login_user(user_obj, remember=remember)  # Add remember parameter
+                login_user(user_obj, remember=remember)
                 users_collection.update_one(
                     {"username": username},
                     {"$set": {
                         "last_login": datetime.utcnow(),
-                        "last_ip": request.remote_addr  # Add this
+                        "last_ip": request.remote_addr
                     }}
                 )
-                # Set session variables
                 session['user_id'] = username
-                session.permanent = True  # Add this
-                
+                session.permanent = True
+
                 return redirect(url_for('dashboard'))
             flash("Invalid username or password", "error")
         except Exception as e:
             logger.error(f"Login error: {e}")
             flash("An error occurred during login", "error")
-    
+
     return render_template('login.html')
-@app.before_request
-def before_request():
-    if current_user.is_authenticated:
-        session.permanent = True
-        app.permanent_session_lifetime = timedelta(days=7)
+
 
 @app.route('/dashboard')
 @login_required
@@ -507,12 +334,13 @@ def dashboard():
             "participants": current_user.id,
             "active": True
         }).sort("last_activity", -1).limit(5))
-        
+
         return render_template('dashboard.html', recent_rooms=recent_rooms)
     except Exception as e:
         logger.error(f"Dashboard error: {e}")
         flash("Error loading dashboard", "error")
         return redirect(url_for('land'))
+
 
 @app.route('/phone_signin', methods=['POST'])
 def phone_signin():
@@ -523,7 +351,7 @@ def phone_signin():
             return redirect(url_for('login'))
 
         otp = generate_otp()
-        expiry = datetime.utcnow() + timedelta(minutes=5)
+        expiry = datetime.utcnow() + timedelta(minutes=int(os.getenv('OTP_EXPIRY_MINUTES', '5')))
 
         user = users_collection.find_one({"phone_number": phone_number})
         if user:
@@ -535,21 +363,30 @@ def phone_signin():
             session['temp_phone'] = phone_number
             session['temp_otp'] = otp
             session['temp_expiry'] = expiry.timestamp()
+            session.pop('phone_verified', None)
+
+        session.pop(f'otp_attempts_{phone_number}', None)
 
         if not send_otp(phone_number, otp):
             flash("Failed to send OTP. Please try again.", "error")
             return redirect(url_for('login'))
-        
+
         return redirect(url_for('verify_otp', phone_number=phone_number))
     except Exception as e:
         logger.error(f"Phone signin error: {e}")
         flash("Error processing phone signin", "error")
         return redirect(url_for('login'))
 
+
 @app.route('/verify_otp/<phone_number>', methods=['GET', 'POST'])
 def verify_otp(phone_number):
     if request.method == 'POST':
         try:
+            attempts_key = f'otp_attempts_{phone_number}'
+            if session.get(attempts_key, 0) >= 5:
+                flash("Too many incorrect attempts. Please request a new code.", "error")
+                return redirect(url_for('land'))
+
             entered_otp = request.form['otp']
             user = users_collection.find_one({"phone_number": phone_number})
 
@@ -557,24 +394,36 @@ def verify_otp(phone_number):
                 if datetime.utcnow() > user["otp_expiry"]:
                     flash("OTP expired", "error")
                     return redirect(url_for('land'))
-                if int(entered_otp) == user["otp"]:
+                if str(entered_otp) == str(user["otp"]):
+                    session.pop(attempts_key, None)
                     login_user(User(user["username"]))
                     return redirect(url_for('dashboard'))
             else:
                 if datetime.utcnow().timestamp() > session.get('temp_expiry', 0):
                     flash("OTP expired", "error")
                     return redirect(url_for('land'))
-                if int(entered_otp) == session.get('temp_otp'):
+                if str(entered_otp) == str(session.get('temp_otp')):
+                    session.pop(attempts_key, None)
+                    session['phone_verified'] = True
                     return redirect(url_for('register'))
 
+            session[attempts_key] = session.get(attempts_key, 0) + 1
             flash("Invalid OTP", "error")
         except Exception as e:
             logger.error(f"OTP verification error: {e}")
             flash("Error verifying OTP", "error")
     return render_template('verify_otp.html', phone_number=phone_number)
 
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    # Registration is only reachable after a verified phone OTP - closes the
+    # gap where /register could previously be hit directly, bypassing
+    # phone verification entirely.
+    if not session.get('phone_verified') or not session.get('temp_phone'):
+        flash("Please verify your phone number before registering", "error")
+        return redirect(url_for('land'))
+
     if request.method == 'POST':
         try:
             name = request.form['name']
@@ -586,11 +435,11 @@ def register():
             if password != confirm_password:
                 flash("Passwords do not match", "error")
                 return render_template('register.html')
-            
+
             if users_collection.find_one({"username": username}):
                 flash("Username already exists", "error")
                 return render_template('register.html')
-            
+
             hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
             phone_number = session.get('temp_phone')
 
@@ -604,19 +453,26 @@ def register():
                 "created_at": datetime.utcnow(),
                 "last_login": datetime.utcnow()
             })
-            
+
+            session.pop('phone_verified', None)
+            session.pop('temp_phone', None)
+            session.pop('temp_otp', None)
+            session.pop('temp_expiry', None)
+
             login_user(User(username))
             return redirect(url_for('dashboard'))
         except Exception as e:
             logger.error(f"Registration error: {e}")
             flash("Error during registration", "error")
-    
+
     return render_template('register.html')
+
 
 @app.route('/index')
 @login_required
 def index():
     return render_template('index.html')
+
 
 @app.route('/predict', methods=['POST'])
 @login_required
@@ -625,15 +481,19 @@ def predict():
         return jsonify({'error': 'Model not available'}), 500
 
     try:
-        data = request.get_json()
-        image_data = data['image'].split(',')[1]
+        data = request.get_json(silent=True) or {}
+        image_field = data.get('image')
+        if not image_field or ',' not in image_field:
+            return jsonify({'error': 'Invalid image payload'}), 400
+
+        image_data = image_field.split(',', 1)[1]
         image_bytes = base64.b64decode(image_data)
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if img is None:
             return jsonify({'error': 'Invalid image data'}), 400
-            
+
         processed_img = preprocess_frame(img)
         if processed_img is None:
             return jsonify({'error': 'Error preprocessing image'}), 400
@@ -651,13 +511,14 @@ def predict():
         logger.error(f"Prediction error: {e}")
         return jsonify({'error': 'Prediction failed'}), 500
 
+
 @app.route('/create-room')
 @login_required
 def create_room():
     try:
         room_id = generate_room_code()
         current_time = datetime.utcnow()
-        
+
         room_data = {
             "room_id": room_id,
             "creator": current_user.id,
@@ -671,16 +532,17 @@ def create_room():
                 "enable_predictions": True
             }
         }
-        
+
         result = rooms_collection.insert_one(room_data)
         if not result.inserted_id:
             raise Exception("Failed to create room in database")
-            
+
         logger.info(f"Room created successfully: {room_id}")
         return jsonify({"status": "success", "room_id": room_id})
     except Exception as e:
         logger.error(f"Room creation error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/join-room', methods=['POST'])
 @login_required
@@ -691,7 +553,6 @@ def join_room():
             flash('Room code is required', 'error')
             return redirect(url_for('dashboard'))
 
-        # Check if room exists and is active
         room = rooms_collection.find_one({
             "room_id": room_id,
             "active": True
@@ -700,8 +561,7 @@ def join_room():
         if not room:
             flash('Room not found or inactive', 'error')
             return redirect(url_for('dashboard'))
-            
-        # Add user to participants if not already there
+
         if current_user.id not in room['participants']:
             rooms_collection.update_one(
                 {"room_id": room_id},
@@ -717,6 +577,7 @@ def join_room():
         flash("Error joining room", "error")
         return redirect(url_for('dashboard'))
 
+
 @app.route('/room/<room_id>')
 @login_required
 def room(room_id):
@@ -725,7 +586,7 @@ def room(room_id):
             "room_id": room_id,
             "active": True
         })
-        
+
         if not room:
             flash('Room not found or inactive', 'error')
             return redirect(url_for('dashboard'))
@@ -743,11 +604,6 @@ def room(room_id):
         flash("Error accessing room", "error")
         return redirect(url_for('dashboard'))
 
- 
-
-
-
-
 
 @app.route('/logout')
 @login_required
@@ -762,6 +618,7 @@ def logout():
         logger.error(f"Logout error: {e}")
     return redirect(url_for('land'))
 
+
 @app.route('/health')
 def health_check():
     """Health check endpoint."""
@@ -772,11 +629,13 @@ def health_check():
         'database_connected': bool(mongo_client)
     })
 
+
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('error.html',
                          error="Page not found",
                          message="The requested page could not be found."), 404
+
 
 @app.errorhandler(500)
 def internal_error(error):
@@ -785,10 +644,14 @@ def internal_error(error):
                          error="Internal Server Error",
                          message="An unexpected error occurred."), 500
 
-# Initialize video calling functionality
-socketio = init_video_call(app)
 
-# Update cleanup function with new configuration
+# Wire the video-call / chat signaling handlers onto the single SocketIO
+# instance created above (previously this created a second, independent
+# SocketIO() bound to the same app, silently orphaning this app's socket
+# handlers and half the app's config).
+socketio = init_video_call(app, socketio)
+
+
 def cleanup_inactive_rooms():
     """Cleanup inactive rooms periodically."""
     while True:
@@ -796,7 +659,7 @@ def cleanup_inactive_rooms():
             timeout_hours = int(os.getenv('ROOM_TIMEOUT_HOURS', 24))
             cleanup_interval = int(os.getenv('ROOM_CLEANUP_INTERVAL', 300))
             cutoff_time = datetime.utcnow() - timedelta(hours=timeout_hours)
-            
+
             rooms_collection.update_many(
                 {
                     "last_activity": {"$lt": cutoff_time},
@@ -809,13 +672,12 @@ def cleanup_inactive_rooms():
             logger.error(f"Room cleanup error: {e}")
         socketio.sleep(cleanup_interval)
 
+
 if __name__ == '__main__':
     try:
-        import socket
         def get_ip():
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             try:
-                # doesn't even have to be reachable
                 s.connect(('10.255.255.255', 1))
                 IP = s.getsockname()[0]
             except Exception:
@@ -824,8 +686,8 @@ if __name__ == '__main__':
                 s.close()
             return IP
 
-        host = '0.0.0.0'  # Listen on all network interfaces
-        port = 5000
+        host = '0.0.0.0'
+        port = int(os.getenv('PORT', 5000))
         local_ip = get_ip()
 
         print("\n" + "="*50)
@@ -840,11 +702,12 @@ if __name__ == '__main__':
         print("3. If using mobile, enable desktop site in browser")
         print("="*50 + "\n")
 
+        socketio.start_background_task(cleanup_inactive_rooms)
         socketio.run(
             app,
             host=host,
             port=port,
-            debug=False,  # Set to False for production
+            debug=False,
             allow_unsafe_werkzeug=True
         )
     except Exception as e:

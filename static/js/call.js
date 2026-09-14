@@ -1,481 +1,10 @@
-// class VideoCall {
-//     constructor(roomId, username) {
-//         this.roomId = roomId;
-//         this.username = username;
-//         this.peers = {};
-//         this.localStream = null;
-        
-//     // Updated socket connection options
-//     this.socket = io({
-//         transports: ['websocket', 'polling'],
-//         upgrade: true,
-//         reconnection: true,
-//         reconnectionAttempts: 5,
-//         reconnectionDelay: 1000,
-//         timeout: 20000
-//     });
-//         // State
-//         this.isVideoEnabled = true;
-//         this.isAudioEnabled = true;
-//         this.isPredictionEnabled = false;
-//         this.predictionInterval = null;
-//         this.predictionDelay = 1000;
-//         this.lastPredictionTime = 0;
-//         this.predictionConfidenceThreshold = 0.6;
-
-//         // Debug mode
-//         this.debug = true;
-//         this.log('Initializing VideoCall');
-
-//         // Initialize UI elements
-//         this.initializeUI();
-//         this.initializeSocketEvents();
-//     }
-
-//     log(...args) {
-//         if (this.debug) {
-//             console.log('[VideoCall]', ...args);
-//         }
-//     }
-
-//     initializeUI() {
-//         this.predictionContainer = document.getElementById('predictions-container');
-//         this.predictionStatus = document.getElementById('predictionStatus');
-        
-//         // Initialize prediction toggle
-//         const predictionToggle = document.getElementById('toggle-prediction');
-//         if (predictionToggle) {
-//             predictionToggle.addEventListener('click', () => this.togglePrediction());
-//         }
-//     }
-
-//     initializeSocketEvents() {
-//         this.socket.on('connect', () => {
-//             this.log('Socket connected');
-//             this.initializeMedia()
-//                 .then(() => this.joinRoom())
-//                 .catch(err => this.showError('Failed to initialize media', err));
-//         });
-
-//         this.socket.on('sign_prediction', (data) => {
-//             if (data.username !== this.username) {
-//                 this.addPredictionToUI(data);
-//             }
-//         });
-
-//         this.socket.on('user_joined', (data) => {
-//             this.log('User joined:', data);
-//             this.updateParticipantCount(data.participant_count);
-//             if (data.username !== this.username) {
-//                 this.handleUserJoined(data);
-//             }
-//         });
-
-//         this.socket.on('user_left', (data) => {
-//             this.log('User left:', data);
-//             this.handleUserLeft(data);
-//             this.updateParticipantCount(data.participant_count);
-//         });
-//     }
-
-//     async initializeMedia() {
-//         try {
-//             const constraints = {
-//                 audio: {
-//                     echoCancellation: true,
-//                     noiseSuppression: true,
-//                     autoGainControl: true
-//                 },
-//                 video: {
-//                     width: { ideal: 1280 },
-//                     height: { ideal: 720 },
-//                     facingMode: 'user',
-//                     frameRate: { ideal: 30 }
-//                 }
-//             };
-
-//             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-//             await this.displayLocalVideo();
-//             return true;
-//         } catch (err) {
-//             this.showError('Failed to access camera/microphone', err);
-//             throw err;
-//         }
-//     }
-
-//     async displayLocalVideo() {
-//         const videoGrid = document.getElementById('video-grid');
-//         if (!videoGrid) return;
-
-//         const videoContainer = document.createElement('div');
-//         videoContainer.className = 'video-container';
-//         videoContainer.id = `video-container-${this.username}`;
-
-//         const video = document.createElement('video');
-//         video.id = `video-${this.username}`;
-//         video.autoplay = true;
-//         video.playsInline = true;
-//         video.muted = true;
-
-//         const overlay = document.createElement('div');
-//         overlay.className = 'video-overlay';
-//         overlay.innerHTML = `
-//             <div class="name-tag">${this.username} (You)</div>
-//             <div class="sign-indicator"></div>
-//         `;
-
-//         videoContainer.appendChild(video);
-//         videoContainer.appendChild(overlay);
-//         videoGrid.appendChild(videoContainer);
-
-//         video.srcObject = this.localStream;
-//         await video.play();
-//     }
-
-//     togglePrediction() {
-//         this.isPredictionEnabled = !this.isPredictionEnabled;
-//         const toggleButton = document.getElementById('toggle-prediction');
-        
-//         if (this.isPredictionEnabled) {
-//             toggleButton?.setAttribute('data-active', 'true');
-//             this.startPredictions();
-//             this.showStatus('Sign detection enabled');
-//         } else {
-//             toggleButton?.setAttribute('data-active', 'false');
-//             this.stopPredictions();
-//             this.showStatus('Sign detection disabled');
-//         }
-//     }
-
-//     startPredictions() {
-//         if (this.predictionInterval) {
-//             clearInterval(this.predictionInterval);
-//         }
-
-//         this.predictionInterval = setInterval(() => {
-//             this.captureAndPredict();
-//         }, this.predictionDelay);
-//     }
-
-//     stopPredictions() {
-//         if (this.predictionInterval) {
-//             clearInterval(this.predictionInterval);
-//             this.predictionInterval = null;
-//         }
-//     }
-
-//     async captureAndPredict() {
-//         if (!this.isPredictionEnabled || !this.localStream) return;
-
-//         const now = Date.now();
-//         if (now - this.lastPredictionTime < this.predictionDelay) return;
-//         this.lastPredictionTime = now;
-
-//         try {
-//             const video = document.getElementById(`video-${this.username}`);
-//             if (!video) return;
-
-//             const canvas = document.createElement('canvas');
-//             canvas.width = 224;
-//             canvas.height = 224;
-//             const ctx = canvas.getContext('2d');
-//             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-//             const imageData = canvas.toDataURL('image/jpeg', 0.8);
-
-//             const response = await fetch('/predict', {
-//                 method: 'POST',
-//                 headers: {
-//                     'Content-Type': 'application/json',
-//                 },
-//                 body: JSON.stringify({ image: imageData })
-//             });
-
-//             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-//             const data = await response.json();
-//             if (data.error) throw new Error(data.error);
-
-//             if (data.confidence >= this.predictionConfidenceThreshold * 100) {
-//                 this.handlePrediction(data);
-//             }
-
-//         } catch (error) {
-//             this.log('Prediction error:', error);
-//             this.showStatus('Sign detection error: ' + error.message);
-//         }
-//     }
-
-//     handlePrediction(predictionData) {
-//         this.addPredictionToUI(predictionData);
-//         this.updateSignIndicator(predictionData.prediction);
-
-//         this.socket.emit('sign_prediction', {
-//             room: this.roomId,
-//             username: this.username,
-//             ...predictionData
-//         });
-//     }
-
-//     addPredictionToUI(predictionData) {
-//         if (!this.predictionContainer) return;
-
-//         const predictionElement = document.createElement('div');
-//         predictionElement.className = 'prediction-item';
-        
-//         const timestamp = new Date(predictionData.timestamp).toLocaleTimeString();
-//         const confidence = Math.round(predictionData.confidence);
-
-//         predictionElement.innerHTML = `
-//             <div class="prediction-avatar">
-//                 ${predictionData.username?.[0]?.toUpperCase() || 'U'}
-//             </div>
-//             <div class="prediction-content">
-//                 <div class="prediction-letter">${predictionData.prediction}</div>
-//                 <div class="prediction-word">${this.getWordForLetter(predictionData.prediction)}</div>
-//                 <div class="prediction-meta">
-//                     <span class="prediction-user">${predictionData.username}</span>
-//                     <span class="prediction-confidence">${confidence}%</span>
-//                     <span class="prediction-time">${timestamp}</span>
-//                 </div>
-//             </div>
-//             </div>
-//         `;
-
-//         this.predictionContainer.insertBefore(predictionElement, this.predictionContainer.firstChild);
-
-//         // Keep only last 20 predictions
-//         while (this.predictionContainer.children.length > 20) {
-//             this.predictionContainer.removeChild(this.predictionContainer.lastChild);
-//         }
-//     }
-
-//     updateSignIndicator(prediction) {
-//         const container = document.querySelector(`#video-container-${this.username} .sign-indicator`);
-//         if (!container) return;
-
-//         container.textContent = `Sign: ${prediction}`;
-//         container.classList.add('visible');
-
-//         setTimeout(() => {
-//             container.classList.remove('visible');
-//         }, 2000);
-//     }
-
-//     getWordForLetter(letter) {
-//         const words = {
-//             'A': 'APPLE', 'B': 'BOOK', 'C': 'CAT', 'D': 'DOG',
-//             'E': 'ELEPHANT', 'F': 'FRIEND', 'G': 'GOOD', 'H': 'HELLO',
-//             'I': 'ICE CREAM', 'J': 'JUMP', 'K': 'KING', 'L': 'LOVE',
-//             'M': 'MOTHER', 'N': 'NICE', 'O': 'ORANGE', 'P': 'PLEASE',
-//             'Q': 'QUEEN', 'R': 'RAINBOW', 'S': 'SUN', 'T': 'THANK YOU',
-//             'U': 'UMBRELLA', 'V': 'VICTORY', 'W': 'WATER', 'X': 'X-RAY',
-//             'Y': 'YELLOW', 'Z': 'ZEBRA'
-//         };
-//         return words[letter] || letter;
-//     }
-
-//     showStatus(message, type = 'info') {
-//         if (!this.predictionStatus) return;
-
-//         this.predictionStatus.textContent = message;
-//         this.predictionStatus.className = `prediction-status ${type} visible`;
-
-//         setTimeout(() => {
-//             this.predictionStatus.classList.remove('visible');
-//         }, 3000);
-//     }
-
-//     async joinRoom() {
-//         this.log('Joining room:', this.roomId);
-//         this.socket.emit('join_room', {
-//             room: this.roomId,
-//             username: this.username
-//         });
-//     }
-
-//     async handleUserJoined(data) {
-//         this.log('Creating peer connection for:', data.username);
-//         const pc = new RTCPeerConnection(peerConfiguration);
-//         this.peers[data.username] = pc;
-
-//         // Add local tracks
-//         this.localStream.getTracks().forEach(track => {
-//             pc.addTrack(track, this.localStream);
-//         });
-
-//         // Handle ICE candidates
-//         pc.onicecandidate = (event) => {
-//             if (event.candidate) {
-//                 this.socket.emit('ice_candidate', {
-//                     room: this.roomId,
-//                     target: data.username,
-//                     username: this.username,
-//                     candidate: event.candidate
-//                 });
-//             }
-//         };
-
-//         // Handle incoming tracks
-//         pc.ontrack = (event) => {
-//             const remoteVideo = this.createVideoElement(data.username);
-//             remoteVideo.srcObject = event.streams[0];
-//             document.getElementById('video-grid').appendChild(remoteVideo);
-//         };
-
-//         // Create and send offer
-//         try {
-//             const offer = await pc.createOffer();
-//             await pc.setLocalDescription(offer);
-//             this.socket.emit('offer', {
-//                 room: this.roomId,
-//                 target: data.username,
-//                 username: this.username,
-//                 sdp: offer
-//             });
-//         } catch (err) {
-//             console.error('Error creating offer:', err);
-//         }
-//     }
-
-//     handleUserLeft(data) {
-//         const pc = this.peers[data.username];
-//         if (pc) {
-//             pc.close();
-//             delete this.peers[data.username];
-//         }
-        
-//         const videoElement = document.getElementById(`video-container-${data.username}`);
-//         if (videoElement) {
-//             videoElement.remove();
-//         }
-//     }
-
-//     updateParticipantCount(count) {
-//         const countElement = document.getElementById('participantCount');
-//         if (countElement) {
-//             countElement.textContent = count;
-//         }
-//         const videoGrid = document.getElementById('video-grid');
-//         if (videoGrid) {
-//             videoGrid.setAttribute('data-count', count);
-//         }
-//     }
-
-//     toggleVideo() {
-//         if (!this.localStream) return false;
-//         const videoTrack = this.localStream.getVideoTracks()[0];
-//         if (videoTrack) {
-//             this.isVideoEnabled = !videoTrack.enabled;
-//             videoTrack.enabled = this.isVideoEnabled;
-//             if (!videoTrack.enabled && this.isPredictionEnabled) {
-//                 this.togglePrediction();
-//             }
-//             return this.isVideoEnabled;
-//         }
-//         return false;
-//     }
-
-//     toggleAudio() {
-//         if (!this.localStream) return false;
-//         const audioTrack = this.localStream.getAudioTracks()[0];
-//         if (audioTrack) {
-//             this.isAudioEnabled = !audioTrack.enabled;
-//             audioTrack.enabled = this.isAudioEnabled;
-//             return this.isAudioEnabled;
-//         }
-//         return false;
-//     }
-
-//     cleanup() {
-//         this.stopPredictions();
-//         if (this.localStream) {
-//             this.localStream.getTracks().forEach(track => track.stop());
-//         }
-//         Object.values(this.peers).forEach(peer => peer.close());
-//         this.socket.disconnect();
-//     }
-// }
-
-// // WebRTC Configuration
-// const peerConfiguration = {
-//     iceServers: [
-//         {
-//             urls: [
-//                 'stun:stun.l.google.com:19302',
-//                 'stun:stun1.l.google.com:19302',
-//                 'stun:stun2.l.google.com:19302',
-//                 'stun:stun3.l.google.com:19302',
-//                 'stun:stun4.l.google.com:19302'
-//             ]
-//         },
-//         {
-//             urls: 'turn:numb.viagenie.ca',
-//             username: 'webrtc@live.com',
-//             credential: 'muazkh'
-//         },
-//         {
-//             urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
-//             username: 'webrtc',
-//             credential: 'webrtc'
-//         }
-//     ],
-//     iceCandidatePoolSize: 10,
-//     bundlePolicy: 'max-bundle',
-//     rtcpMuxPolicy: 'require',
-//     iceTransportPolicy: 'all'
-// };
-
-// // Initialize on page load
-// document.addEventListener('DOMContentLoaded', () => {
-//     const videoCall = new VideoCall(ROOM_ID, USERNAME);
-//     window.videoCall = videoCall;
-
-//     // Handle page unload
-//     window.addEventListener('beforeunload', () => {
-//         videoCall.cleanup();
-//     });
-
-//     // Initialize control buttons
-//     const controls = {
-//         video: document.getElementById('toggle-video'),
-//         audio: document.getElementById('toggle-audio'),
-//         prediction: document.getElementById('toggle-prediction'),
-//         leave: document.getElementById('leave-room')
-//     };
-
-//     if (controls.video) {
-//         controls.video.addEventListener('click', function() {
-//             const isEnabled = videoCall.toggleVideo();
-//             this.innerHTML = isEnabled ? 
-//                 '<i class="fas fa-video"></i>' : 
-//                 '<i class="fas fa-video-slash"></i>';
-//             this.classList.toggle('active', isEnabled);
-//         });
-//     }
-
-//     if (controls.audio) {
-//         controls.audio.addEventListener('click', function() {
-//             const isEnabled = videoCall.toggleAudio();
-//             this.innerHTML = isEnabled ? 
-//                 '<i class="fas fa-microphone"></i>' : 
-//                 '<i class="fas fa-microphone-slash"></i>';
-//             this.classList.toggle('active', isEnabled);
-//         });
-//     }
-
-//     if (controls.leave) {
-//         controls.leave.addEventListener('click', () => {
-//             videoCall.cleanup();
-//             window.location.href = '/dashboard';
-//         });
-//     }
-// });
-
-
-
-
-
+// Usernames, chat text and predictions all come from other users over the
+// socket - escape before inserting via innerHTML to avoid stored XSS.
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
 
 const peerConfiguration = {
     iceServers: [
@@ -509,8 +38,9 @@ class VideoCall {
             transports: ['websocket'],
             upgrade: false,
             reconnection: true,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
             timeout: 20000
         });
 
@@ -519,6 +49,10 @@ class VideoCall {
         this.isPredictionEnabled = false;
         this.predictionInterval = null;
         this.debug = true;
+        this.participants = new Set([this.username]);
+        this.videoDevices = [];
+        this.currentCameraIndex = 0;
+        this.renderParticipants();
 
         // Initialize everything
     this.initializeSocketEvents();
@@ -574,12 +108,39 @@ class VideoCall {
             throw error;
         }
     }
-    
+
 
     initializeSocketEvents() {
         this.socket.on('connect', () => {
             console.log('Socket connected');
             this.hideConnectionStatus();
+        });
+
+        // A dropped connection (wifi blip, laptop sleep, etc.) leaves stale
+        // peer connections behind and the server forgets this socket's room
+        // membership. On reconnect, tear down old peers and rejoin so both
+        // sides re-negotiate fresh offers instead of the call staying dead.
+        this.socket.on('reconnect', (attempt) => {
+            console.log(`Socket reconnected after ${attempt} attempt(s)`);
+            this.hideConnectionStatus();
+            this.teardownPeers();
+            if (this.localStream) {
+                this.joinRoom();
+            }
+        });
+
+        this.socket.on('disconnect', (reason) => {
+            console.warn('Socket disconnected:', reason);
+            this.showConnectionStatus('Connection lost. Reconnecting...');
+        });
+
+        this.socket.on('connect_error', (err) => {
+            console.warn('Socket connect error:', err.message);
+            this.showConnectionStatus('Connection problem. Retrying...');
+        });
+
+        this.socket.on('reconnect_failed', () => {
+            this.showError('Unable to reconnect to the call. Please refresh the page.');
         });
 
         this.socket.on('sign_prediction', (data) => {
@@ -588,10 +149,33 @@ class VideoCall {
             }
         });
 
+        this.socket.on('room_participants', (data) => {
+            if (Array.isArray(data.participants)) {
+                this.participants = new Set(data.participants);
+                this.renderParticipants();
+            }
+            if (typeof data.participant_count === 'number') {
+                this.updateParticipantCount(data.participant_count);
+            } else if (Array.isArray(data.participants)) {
+                this.updateParticipantCount(data.participants.length);
+            }
+        });
+
         this.socket.on('user_joined', async (data) => {
             console.log('User joined:', data);
+            this.participants.add(data.username);
+            this.renderParticipants();
+            if (typeof data.participant_count === 'number') {
+                this.updateParticipantCount(data.participant_count);
+            }
             if (data.username !== this.username) {
                 await this.handleUserJoined(data);
+            }
+        });
+
+        this.socket.on('chat_message', (data) => {
+            if (data.username !== this.username) {
+                this.addChatMessage(data, false);
             }
         });
 
@@ -667,7 +251,7 @@ class VideoCall {
                 offerToReceiveVideo: true
             });
             await pc.setLocalDescription(offer);
-            
+
             this.socket.emit('offer', {
                 room: this.roomId,
                 target: data.username,
@@ -736,13 +320,69 @@ class VideoCall {
             videoElement.remove();
         }
 
+        this.participants.delete(data.username);
+        this.renderParticipants();
         this.updateParticipantCount(data.participant_count);
+    }
+
+    renderParticipants() {
+        const list = document.getElementById('participantsList');
+        if (!list) return;
+        list.innerHTML = '';
+        Array.from(this.participants).sort().forEach(name => {
+            const item = document.createElement('div');
+            item.className = 'participant-item';
+            const label = escapeHtml(name) + (name === this.username ? ' (You)' : '');
+            item.innerHTML = `<i class="fas fa-user"></i><span>${label}</span>`;
+            list.appendChild(item);
+        });
+    }
+
+    sendChatMessage(text) {
+        const payload = {
+            room: this.roomId,
+            username: this.username,
+            message: text,
+            timestamp: new Date().toISOString()
+        };
+        this.socket.emit('chat_message', payload);
+        this.addChatMessage(payload, true);
+    }
+
+    addChatMessage(data, isOwn) {
+        const container = document.getElementById('chatMessages');
+        if (!container) return;
+
+        const el = document.createElement('div');
+        el.className = 'chat-message' + (isOwn ? ' own' : '');
+        const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+        el.innerHTML = `
+            <div class="chat-meta">
+                <span>${escapeHtml(data.username || '')}</span>
+                <span>${timestamp}</span>
+            </div>
+            <div class="chat-text">${escapeHtml(data.message || '')}</div>
+        `;
+
+        container.appendChild(el);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    teardownPeers() {
+        Object.values(this.peers).forEach(pc => pc.close());
+        this.peers = {};
+        document.querySelectorAll('.video-container').forEach(el => {
+            if (el.id !== `video-container-${this.username}`) {
+                el.remove();
+            }
+        });
     }
 
     monitorPeerConnection(pc, username) {
         pc.onconnectionstatechange = () => {
             console.log(`Connection state with ${username}:`, pc.connectionState);
-            
+
             const container = document.getElementById(`video-container-${username}`);
             if (container) {
                 const status = container.querySelector('.connection-status');
@@ -774,7 +414,7 @@ class VideoCall {
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            
+
             this.socket.emit('offer', {
                 room: this.roomId,
                 target: username,
@@ -846,220 +486,278 @@ class VideoCall {
 
     togglePrediction() {
         this.isPredictionEnabled = !this.isPredictionEnabled;
-        
+
         if (this.isPredictionEnabled) {
             this.startPredictionInterval();
         } else if (this.predictionInterval) {
             clearInterval(this.predictionInterval);
         }
-        
+
         return this.isPredictionEnabled;
     }
-// Add after your existing methods in VideoCall class
 
-async initializeSettings() {
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cameraSelect = document.getElementById('cameraSelect');
-        const microphoneSelect = document.getElementById('microphoneSelect');
+    async initializeSettings() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cameraSelect = document.getElementById('cameraSelect');
+            const microphoneSelect = document.getElementById('microphoneSelect');
 
-        if (cameraSelect) {
             const videoDevices = devices.filter(device => device.kind === 'videoinput');
-            videoDevices.forEach(device => {
-                const option = document.createElement('option');
-                option.value = device.deviceId;
-                option.text = device.label || `Camera ${cameraSelect.length + 1}`;
-                cameraSelect.appendChild(option);
+            this.videoDevices = videoDevices;
+
+            const switchCameraBtn = document.getElementById('switch-camera');
+            if (switchCameraBtn) {
+                switchCameraBtn.style.display = videoDevices.length > 1 ? '' : 'none';
+            }
+
+            if (cameraSelect) {
+                videoDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${cameraSelect.length + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+
+                cameraSelect.addEventListener('change', () => this.switchCamera(cameraSelect.value));
+            }
+
+            if (microphoneSelect) {
+                const audioDevices = devices.filter(device => device.kind === 'audioinput');
+                audioDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Microphone ${microphoneSelect.length + 1}`;
+                    microphoneSelect.appendChild(option);
+                });
+
+                microphoneSelect.addEventListener('change', () => this.switchMicrophone(microphoneSelect.value));
+            }
+        } catch (error) {
+            console.error('Error initializing settings:', error);
+        }
+    }
+
+    async switchCamera(deviceId) {
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    deviceId: deviceId ? { exact: deviceId } : undefined,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 30 }
+                },
+                audio: false
             });
 
-            cameraSelect.addEventListener('change', () => this.switchCamera(cameraSelect.value));
-        }
+            // Update local video track
+            const oldTrack = this.localStream.getVideoTracks()[0];
+            const newTrack = newStream.getVideoTracks()[0];
+            this.localStream.removeTrack(oldTrack);
+            this.localStream.addTrack(newTrack);
+            oldTrack.stop();
 
-        if (microphoneSelect) {
-            const audioDevices = devices.filter(device => device.kind === 'audioinput');
-            audioDevices.forEach(device => {
-                const option = document.createElement('option');
-                option.value = device.deviceId;
-                option.text = device.label || `Microphone ${microphoneSelect.length + 1}`;
-                microphoneSelect.appendChild(option);
+            // Update local video element
+            const localVideo = document.getElementById('localVideo');
+            if (localVideo) {
+                localVideo.srcObject = this.localStream;
+            }
+
+            // Update track for all peer connections
+            Object.values(this.peers).forEach(pc => {
+                const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(newTrack);
+                }
             });
 
-            microphoneSelect.addEventListener('change', () => this.switchMicrophone(microphoneSelect.value));
-        }
-    } catch (error) {
-        console.error('Error initializing settings:', error);
-    }
-}
-
-async switchCamera(deviceId) {
-    try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                deviceId: deviceId ? { exact: deviceId } : undefined,
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                frameRate: { ideal: 30 }
-            },
-            audio: false
-        });
-
-        // Update local video track
-        const oldTrack = this.localStream.getVideoTracks()[0];
-        const newTrack = newStream.getVideoTracks()[0];
-        this.localStream.removeTrack(oldTrack);
-        this.localStream.addTrack(newTrack);
-        oldTrack.stop();
-
-        // Update local video element
-        const localVideo = document.getElementById('localVideo');
-        if (localVideo) {
-            localVideo.srcObject = this.localStream;
-        }
-
-        // Update track for all peer connections
-        Object.values(this.peers).forEach(pc => {
-            const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (sender) {
-                sender.replaceTrack(newTrack);
+            this.isVideoEnabled = true;
+            const videoButton = document.getElementById('toggle-video');
+            if (videoButton) {
+                videoButton.innerHTML = '<i class="fas fa-video"></i>';
+                videoButton.classList.add('active');
             }
-        });
-
-        this.isVideoEnabled = true;
-        const videoButton = document.getElementById('toggle-video');
-        if (videoButton) {
-            videoButton.innerHTML = '<i class="fas fa-video"></i>';
-            videoButton.classList.add('active');
+        } catch (error) {
+            console.error('Error switching camera:', error);
+            this.showError('Failed to switch camera');
         }
-    } catch (error) {
-        console.error('Error switching camera:', error);
-        this.showError('Failed to switch camera');
-    }
-}
-
-async switchMicrophone(deviceId) {
-    try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-            video: false,
-            audio: {
-                deviceId: deviceId ? { exact: deviceId } : undefined,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
-
-        // Update local audio track
-        const oldTrack = this.localStream.getAudioTracks()[0];
-        const newTrack = newStream.getAudioTracks()[0];
-        this.localStream.removeTrack(oldTrack);
-        this.localStream.addTrack(newTrack);
-        oldTrack.stop();
-
-        // Update track for all peer connections
-        Object.values(this.peers).forEach(pc => {
-            const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-            if (sender) {
-                sender.replaceTrack(newTrack);
-            }
-        });
-
-        this.isAudioEnabled = true;
-        const audioButton = document.getElementById('toggle-audio');
-        if (audioButton) {
-            audioButton.innerHTML = '<i class="fas fa-microphone"></i>';
-            audioButton.classList.add('active');
-        }
-    } catch (error) {
-        console.error('Error switching microphone:', error);
-        this.showError('Failed to switch microphone');
-    }
-}
-
-
-    // Add these methods to your VideoCall class right after togglePrediction():
-
-
-
-startPredictionInterval() {
-    if (this.predictionInterval) {
-        clearInterval(this.predictionInterval);
     }
 
-    this.predictionInterval = setInterval(() => {
-        this.captureAndPredict();
-    }, 2000); // Predict every 2 seconds
-}
+    async switchToNextCamera() {
+        if (!this.videoDevices || this.videoDevices.length < 2) return;
+        this.currentCameraIndex = (this.currentCameraIndex + 1) % this.videoDevices.length;
+        await this.switchCamera(this.videoDevices[this.currentCameraIndex].deviceId);
+    }
 
-async captureAndPredict() {
-    if (!this.isPredictionEnabled || !this.localStream) return;
+    async setVideoQuality(quality) {
+        const presets = {
+            low: { width: 640, height: 360 },
+            medium: { width: 1280, height: 720 },
+            high: { width: 1920, height: 1080 }
+        };
+        const dims = presets[quality] || presets.medium;
 
-    try {
-        const video = document.getElementById('localVideo');
-        if (!video) return;
+        if (!this.localStream) return;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = 224;
-        canvas.height = 224;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+            const currentTrack = this.localStream.getVideoTracks()[0];
+            const currentDeviceId = currentTrack ? currentTrack.getSettings().deviceId : undefined;
 
-        const response = await fetch('/predict', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                image: canvas.toDataURL('image/jpeg', 0.8)
-            })
-        });
-
-        if (!response.ok) throw new Error('Prediction request failed');
-        const data = await response.json();
-
-        if (data.prediction) {
-            // Add prediction to UI
-            this.addPredictionToUI(data);
-            // Broadcast prediction to room
-            this.socket.emit('sign_prediction', {
-                room: this.roomId,
-                username: this.username,
-                prediction: data.prediction,
-                confidence: data.confidence
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    deviceId: currentDeviceId ? { exact: currentDeviceId } : undefined,
+                    width: { ideal: dims.width },
+                    height: { ideal: dims.height },
+                    frameRate: { ideal: 30 }
+                },
+                audio: false
             });
+
+            const newTrack = newStream.getVideoTracks()[0];
+            if (currentTrack) {
+                this.localStream.removeTrack(currentTrack);
+                currentTrack.stop();
+            }
+            this.localStream.addTrack(newTrack);
+
+            const localVideo = document.getElementById('localVideo');
+            if (localVideo) {
+                localVideo.srcObject = this.localStream;
+            }
+
+            Object.values(this.peers).forEach(pc => {
+                const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(newTrack);
+                }
+            });
+        } catch (error) {
+            console.error('Error changing video quality:', error);
+            this.showError('Failed to change video quality');
         }
-    } catch (error) {
-        console.error('Prediction error:', error);
     }
-}
 
-addPredictionToUI(data) {
-    const container = document.getElementById('predictions-container');
-    if (!container) return;
+    async switchMicrophone(deviceId) {
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: false,
+                audio: {
+                    deviceId: deviceId ? { exact: deviceId } : undefined,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
 
-    const predictionElement = document.createElement('div');
-    predictionElement.className = 'prediction-item';
-    const timestamp = new Date().toLocaleTimeString();
+            // Update local audio track
+            const oldTrack = this.localStream.getAudioTracks()[0];
+            const newTrack = newStream.getAudioTracks()[0];
+            this.localStream.removeTrack(oldTrack);
+            this.localStream.addTrack(newTrack);
+            oldTrack.stop();
 
-    predictionElement.innerHTML = `
-        <div class="prediction-content">
-            <div class="prediction-header">
-                <span class="prediction-user">${data.username || this.username}</span>
-                <span class="prediction-time">${timestamp}</span>
+            // Update track for all peer connections
+            Object.values(this.peers).forEach(pc => {
+                const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+                if (sender) {
+                    sender.replaceTrack(newTrack);
+                }
+            });
+
+            this.isAudioEnabled = true;
+            const audioButton = document.getElementById('toggle-audio');
+            if (audioButton) {
+                audioButton.innerHTML = '<i class="fas fa-microphone"></i>';
+                audioButton.classList.add('active');
+            }
+        } catch (error) {
+            console.error('Error switching microphone:', error);
+            this.showError('Failed to switch microphone');
+        }
+    }
+
+    startPredictionInterval() {
+        if (this.predictionInterval) {
+            clearInterval(this.predictionInterval);
+        }
+
+        this.predictionInterval = setInterval(() => {
+            this.captureAndPredict();
+        }, 2000); // Predict every 2 seconds
+    }
+
+    async captureAndPredict() {
+        if (!this.isPredictionEnabled || !this.localStream) return;
+
+        try {
+            const video = document.getElementById('localVideo');
+            if (!video) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 224;
+            canvas.height = 224;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image: canvas.toDataURL('image/jpeg', 0.8)
+                })
+            });
+
+            if (!response.ok) throw new Error('Prediction request failed');
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+
+            if (data.prediction) {
+                // Add prediction to UI
+                this.addPredictionToUI(data);
+                // Broadcast prediction to room
+                this.socket.emit('sign_prediction', {
+                    room: this.roomId,
+                    username: this.username,
+                    prediction: data.prediction,
+                    confidence: data.confidence,
+                    timestamp: data.timestamp
+                });
+            }
+        } catch (error) {
+            console.error('Prediction error:', error);
+        }
+    }
+
+    addPredictionToUI(data) {
+        const container = document.getElementById('predictions-container');
+        if (!container) return;
+
+        const predictionElement = document.createElement('div');
+        predictionElement.className = 'prediction-item';
+        const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+        const confidence = typeof data.confidence === 'number' ? Math.round(data.confidence) : null;
+
+        predictionElement.innerHTML = `
+            <div class="prediction-content">
+                <div class="prediction-header">
+                    <span class="prediction-user">${escapeHtml(data.username || this.username)}</span>
+                    <span class="prediction-time">${timestamp}</span>
+                </div>
+                <div class="prediction-text">
+                    <strong>${escapeHtml(data.prediction)}</strong>
+                    ${confidence !== null ? `<span class="prediction-confidence">${confidence}%</span>` : ''}
+                </div>
             </div>
-            <div class="prediction-text">
-                <strong>${data.prediction}</strong>
-                <span class="prediction-confidence">${Math.round(data.confidence)}%</span>
-            </div>
-        </div>
-    `;
+        `;
 
-    container.insertBefore(predictionElement, container.firstChild);
+        container.insertBefore(predictionElement, container.firstChild);
 
-    // Keep only last 10 predictions
-    while (container.children.length > 10) {
-        container.removeChild(container.lastChild);
+        // Keep only last 10 predictions
+        while (container.children.length > 10) {
+            container.removeChild(container.lastChild);
+        }
     }
-}
 
     updateParticipantCount(count) {
         const countElement = document.getElementById('participantCount');
@@ -1069,6 +767,14 @@ addPredictionToUI(data) {
         const videoGrid = document.getElementById('video-grid');
         if (videoGrid) {
             videoGrid.setAttribute('data-count', count);
+        }
+    }
+
+    showConnectionStatus(message) {
+        const status = document.getElementById('connectionStatus');
+        if (status) {
+            status.textContent = message;
+            status.style.display = '';
         }
     }
 
@@ -1092,8 +798,7 @@ addPredictionToUI(data) {
         }
 
         // Close all peer connections
-        Object.values(this.peers).forEach(pc => pc.close());
-        this.peers = {};
+        this.teardownPeers();
 
         // Clear prediction interval
         if (this.predictionInterval) {
@@ -1122,16 +827,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup control buttons
     document.getElementById('toggle-video')?.addEventListener('click', function() {
         const isEnabled = window.videoCall.toggleVideo();
-        this.innerHTML = isEnabled ? 
-            '<i class="fas fa-video"></i>' : 
+        this.innerHTML = isEnabled ?
+            '<i class="fas fa-video"></i>' :
             '<i class="fas fa-video-slash"></i>';
         this.classList.toggle('active', isEnabled);
     });
 
     document.getElementById('toggle-audio')?.addEventListener('click', function() {
         const isEnabled = window.videoCall.toggleAudio();
-        this.innerHTML = isEnabled ? 
-            '<i class="fas fa-microphone"></i>' : 
+        this.innerHTML = isEnabled ?
+            '<i class="fas fa-microphone"></i>' :
             '<i class="fas fa-microphone-slash"></i>';
         this.classList.toggle('active', isEnabled);
     });
@@ -1139,6 +844,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('toggle-prediction')?.addEventListener('click', function() {
         const isEnabled = window.videoCall.togglePrediction();
         this.classList.toggle('active', isEnabled);
+        const checkbox = document.getElementById('predictionEnabled');
+        if (checkbox) checkbox.checked = isEnabled;
     });
 
     document.getElementById('leave-room')?.addEventListener('click', () => {

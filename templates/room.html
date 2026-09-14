@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=()">
+    <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
 
     <title>GestureSpeak Conference</title>
     
@@ -449,6 +449,71 @@
         .connection-status.visible {
             display: flex;
         }
+
+        /* Chat tab */
+        .chat-messages {
+            height: calc(100% - 48px);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .chat-message {
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 0.875rem;
+            max-width: 90%;
+        }
+
+        .chat-message.own {
+            align-self: flex-end;
+            background: var(--primary-color);
+        }
+
+        .chat-message .chat-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-bottom: 0.15rem;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text-light);
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .chat-input button {
+            background: var(--primary-color);
+            border: none;
+            color: white;
+            border-radius: 0.375rem;
+            padding: 0 0.9rem;
+            cursor: pointer;
+        }
+
+        /* Participants tab */
+        .participant-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 0.25rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.9rem;
+        }
     </style>
 
 
@@ -683,8 +748,46 @@
                 errorModal.hide();
                 window.location.reload();
             };
+
+            // Settings button was previously not wired to anything - open the modal
+            document.getElementById('settings')?.addEventListener('click', () => {
+                settingsModal.show();
+            });
+
+            // Keep the settings-modal checkbox and the control-bar button in sync,
+            // since both control the same underlying prediction toggle
+            document.getElementById('predictionEnabled')?.addEventListener('change', function () {
+                const isEnabled = window.videoCall.togglePrediction();
+                this.checked = isEnabled;
+                document.getElementById('toggle-prediction')?.classList.toggle('active', isEnabled);
+            });
+
+            document.getElementById('videoQuality')?.addEventListener('change', function () {
+                window.videoCall?.setVideoQuality(this.value);
+            });
+
+            document.getElementById('switch-camera')?.addEventListener('click', () => {
+                window.videoCall?.switchToNextCamera();
+            });
+
+            // Chat - previously had no backing implementation at all
+            window.sendMessage = () => {
+                const input = document.getElementById('messageInput');
+                if (!input || !window.videoCall) return;
+                const text = input.value.trim();
+                if (!text) return;
+                window.videoCall.sendChatMessage(text);
+                input.value = '';
+            };
+
+            document.getElementById('messageInput')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    window.sendMessage();
+                }
+            });
         });
-        
+
     </script>
 </body>
 </html>
