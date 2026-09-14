@@ -7,8 +7,8 @@ logger = logging.getLogger(__name__)
 
 
 def init_video_call(app, socketio):
-    """Wire video-call signaling (WebRTC offer/answer/ICE) and the live
-    sign-prediction feed onto an existing SocketIO instance.
+    """Wire video-call signaling (WebRTC offer/answer/ICE) and chat onto an
+    existing SocketIO instance.
 
     Takes the app's already-configured `socketio` instance rather than
     creating a new one, so these handlers (and the app's own CORS/logging
@@ -175,18 +175,5 @@ def init_video_call(app, socketio):
             }, room=room_id)
         except Exception as e:
             logger.error(f'Chat message error: {str(e)}')
-
-    @socketio.on('sign_prediction')
-    def handle_sign_prediction(data):
-        try:
-            room_id = data['room']
-            emit('sign_prediction', {
-                'username': data['username'],
-                'prediction': data['prediction'],
-                'confidence': data.get('confidence'),
-                'timestamp': data.get('timestamp') or datetime.utcnow().isoformat()
-            }, room=room_id)
-        except Exception as e:
-            logger.error(f'Sign prediction error: {str(e)}')
 
     return socketio

@@ -6,19 +6,14 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO
 from flask_cors import CORS
-import cv2
-import numpy as np
-from tensorflow.keras.models import load_model
 from twilio.rest import Client
 import secrets
 import string
 from pymongo import MongoClient
 from datetime import datetime, timedelta
-import base64
 import os
 import socket
 import logging
-import gdown
 from dotenv import load_dotenv
 from call import init_video_call
 
@@ -48,6 +43,14 @@ if not app.secret_key:
 
 
 def _is_secure_cookies_enabled():
+    # A cookie marked Secure is silently dropped by every browser when the
+    # page isn't loaded over HTTPS - which this app isn't in local/dev runs
+    # (plain http://localhost). Force it off in development regardless of
+    # the .env value, or login "succeeds" (302 to /dashboard) but the
+    # session cookie never actually gets stored, so the very next request
+    # looks logged-out and @login_required bounces the user right back out.
+    if os.getenv('FLASK_ENV', 'production') == 'development':
+        return False
     return os.getenv('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
 
 
@@ -105,7 +108,7 @@ socketio = SocketIO(
 # Initialize Login Manager
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'land'
+login_manager.login_view = 'login'
 bcrypt = Bcrypt(app)
 
 
@@ -148,53 +151,6 @@ except Exception as e:
     twilio_client = None
 
 
-def download_model_from_gdrive():
-    """Download the ASL model from Google Drive if not present."""
-    try:
-        model_path = os.getenv('MODEL_PATH', 'asl_model1.h5')
-        if not os.path.exists(model_path):
-            logger.info("Downloading ASL model from Google Drive...")
-            url = os.getenv('MODEL_DOWNLOAD_URL',
-                          'https://drive.google.com/uc?id=1HaKX9r7D7F_xXH0yp5rDehMdjdNAfchl')
-            gdown.download(url, model_path, quiet=False)
-            logger.info("Model downloaded successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Error downloading model: {e}")
-        return False
-
-
-def load_asl_model():
-    retries = 3
-    while retries > 0:
-        try:
-            model_path = os.getenv('MODEL_PATH', 'asl_model1.h5')
-            if not os.path.exists(model_path):
-                if not download_model_from_gdrive():
-                    raise Exception("Failed to download model")
-
-            loaded_model = load_model(model_path)
-            logger.info(f"Successfully loaded ASL model from {model_path}")
-            return loaded_model
-        except Exception as e:
-            retries -= 1
-            if retries == 0:
-                logger.error(f"Failed to load ASL model after 3 attempts: {e}")
-                return None
-            logger.warning(f"Model loading attempt failed, retrying... ({3-retries}/3)")
-    return None
-
-
-try:
-    model = load_asl_model()
-    class_map = ["A", "B", "C", "D", "E", "F", "G", "H", "Hello", "I", "I Love You",
-                "J", "K", "L", "M", "N", "No", "O", "P", "Q", "R", "S", "Space",
-                "T", "U", "V", "W", "X", "Y", "Yes", "Z"]
-except Exception as e:
-    logger.error(f"Model loading error: {e}")
-    model = None
-
-
 class User(UserMixin):
     def __init__(self, username, user_data=None):
         self.id = username
@@ -225,14 +181,14 @@ def load_user(username):
         return None
 
 
-def preprocess_frame(frame):
-    try:
-        resized = cv2.resize(frame, (224, 224))
-        normalized = resized / 255.0
-        return np.expand_dims(normalized, axis=0)
-    except Exception as e:
-        logger.error(f"Frame preprocessing error: {e}")
+def safe_next_url(candidate):
+    """Only allow same-site relative redirects (e.g. '/room/ABC123') after
+    login - never an absolute/external URL, which would be an open redirect."""
+    if not candidate:
         return None
+    if candidate.startswith('/') and not candidate.startswith('//') and '\\' not in candidate:
+        return candidate
+    return None
 
 
 def generate_otp():
@@ -256,7 +212,7 @@ def send_otp(phone_number, otp):
 
     try:
         twilio_client.messages.create(
-            body=f"Your GestureSpeak verification code is: {otp}",
+            body=f"Your SyncUp verification code is: {otp}",
             from_=os.getenv('TWILIO_PHONE_NUMBER'),
             to=f'+91{phone_number}'
         )
@@ -294,14 +250,17 @@ def land():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    next_url = safe_next_url(request.args.get('next'))
+
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(next_url or url_for('dashboard'))
 
     if request.method == 'POST':
         try:
             username = request.form['username']
             password = request.form['password']
             remember = request.form.get('remember') in ('on', 'true', '1', 'yes')
+            next_url = safe_next_url(request.form.get('next')) or next_url
             user = users_collection.find_one({"username": username})
 
             if user and bcrypt.check_password_hash(user['password'], password):
@@ -317,13 +276,13 @@ def login():
                 session['user_id'] = username
                 session.permanent = True
 
-                return redirect(url_for('dashboard'))
+                return redirect(next_url or url_for('dashboard'))
             flash("Invalid username or password", "error")
         except Exception as e:
             logger.error(f"Login error: {e}")
             flash("An error occurred during login", "error")
 
-    return render_template('login.html')
+    return render_template('login.html', next_url=next_url)
 
 
 @app.route('/dashboard')
@@ -417,13 +376,11 @@ def verify_otp(phone_number):
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # Registration is only reachable after a verified phone OTP - closes the
-    # gap where /register could previously be hit directly, bypassing
-    # phone verification entirely.
-    if not session.get('phone_verified') or not session.get('temp_phone'):
-        flash("Please verify your phone number before registering", "error")
-        return redirect(url_for('land'))
-
+    # Manual sign-up (name/email/username/password) is the primary path here -
+    # both land.html's "Get Started" and login.html's "Create Account" link
+    # straight to this route. The phone-OTP flow (/phone_signin ->
+    # /verify_otp) also lands here for brand-new numbers and pre-fills
+    # phone_number from session['temp_phone'] below, but is not required.
     if request.method == 'POST':
         try:
             name = request.form['name']
@@ -468,50 +425,6 @@ def register():
     return render_template('register.html')
 
 
-@app.route('/index')
-@login_required
-def index():
-    return render_template('index.html')
-
-
-@app.route('/predict', methods=['POST'])
-@login_required
-def predict():
-    if not model:
-        return jsonify({'error': 'Model not available'}), 500
-
-    try:
-        data = request.get_json(silent=True) or {}
-        image_field = data.get('image')
-        if not image_field or ',' not in image_field:
-            return jsonify({'error': 'Invalid image payload'}), 400
-
-        image_data = image_field.split(',', 1)[1]
-        image_bytes = base64.b64decode(image_data)
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        if img is None:
-            return jsonify({'error': 'Invalid image data'}), 400
-
-        processed_img = preprocess_frame(img)
-        if processed_img is None:
-            return jsonify({'error': 'Error preprocessing image'}), 400
-
-        prediction = model.predict(processed_img)
-        predicted_class = class_map[np.argmax(prediction)]
-        confidence = float(np.max(prediction)) * 100
-
-        return jsonify({
-            'prediction': predicted_class,
-            'confidence': confidence,
-            'timestamp': datetime.utcnow().isoformat()
-        })
-    except Exception as e:
-        logger.error(f"Prediction error: {e}")
-        return jsonify({'error': 'Prediction failed'}), 500
-
-
 @app.route('/create-room')
 @login_required
 def create_room():
@@ -528,8 +441,7 @@ def create_room():
             "participants": [current_user.id],
             "settings": {
                 "max_participants": 5,
-                "enable_chat": True,
-                "enable_predictions": True
+                "enable_chat": True
             }
         }
 
@@ -591,14 +503,31 @@ def room(room_id):
             flash('Room not found or inactive', 'error')
             return redirect(url_for('dashboard'))
 
+        # This URL doubles as the shareable "meet link" - anyone logged in
+        # who opens it joins the room, the same way a Google Meet link works,
+        # rather than only being reachable via the dashboard's join form.
         if current_user.id not in room['participants']:
-            flash('Not authorized to join this room', 'error')
-            return redirect(url_for('dashboard'))
+            max_participants = room.get('settings', {}).get('max_participants', 5)
+            if len(room['participants']) >= max_participants:
+                flash('This room is full', 'error')
+                return redirect(url_for('dashboard'))
+
+            rooms_collection.update_one(
+                {"room_id": room_id},
+                {
+                    "$push": {"participants": current_user.id},
+                    "$set": {"last_activity": datetime.utcnow()}
+                }
+            )
+            room['participants'] = room['participants'] + [current_user.id]
+
+        room_link = request.host_url.rstrip('/') + url_for('room', room_id=room_id)
 
         return render_template('room.html',
                             room_id=room_id,
                             username=current_user.id,
-                            room_data=room)
+                            room_data=room,
+                            room_link=room_link)
     except Exception as e:
         logger.error(f"Room access error: {e}")
         flash("Error accessing room", "error")
@@ -625,7 +554,6 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.utcnow().isoformat(),
-        'model_loaded': bool(model),
         'database_connected': bool(mongo_client)
     })
 
@@ -690,12 +618,35 @@ if __name__ == '__main__':
         port = int(os.getenv('PORT', 5000))
         local_ip = get_ip()
 
+        # Browsers only allow camera/microphone access on a "secure context":
+        # https://, or http:// on localhost/127.0.0.1 specifically. Any other
+        # host over plain http - e.g. the LAN IP printed below - gets no
+        # camera/mic access at all, no matter what the page asks for. Serve
+        # over TLS using the cert already checked into the repo so the LAN
+        # URL actually works for other devices, and so a browser that
+        # auto-upgrades to https/wss (many do) hits a server that's actually
+        # listening for TLS instead of sending it a raw HTTP 400.
+        cert_path = os.getenv('SSL_CERT_PATH', 'server.crt')
+        key_path = os.getenv('SSL_KEY_PATH', 'server.key')
+        ssl_kwargs = {}
+        scheme = 'http'
+        if os.path.exists(cert_path) and os.path.exists(key_path):
+            ssl_kwargs = {'certfile': cert_path, 'keyfile': key_path}
+            scheme = 'https'
+
         print("\n" + "="*50)
         print("Server Running!")
         print("="*50)
         print(f"\nAccess URLs:")
-        print(f"Local computer: http://localhost:{port}")
-        print(f"Other devices : http://{local_ip}:{port}")
+        print(f"Local computer: {scheme}://localhost:{port}")
+        print(f"Other devices : {scheme}://{local_ip}:{port}")
+        if scheme == 'https':
+            print("\n(Self-signed certificate - your browser will warn once;")
+            print(" accept/continue to proceed. Required for camera/mic access")
+            print(" from any device other than localhost.)")
+        else:
+            print(f"\nWARNING: no {cert_path}/{key_path} found - running plain HTTP.")
+            print("Camera/microphone will only work at http://localhost, not the LAN URL.")
         print("\nImportant Notes:")
         print("1. Make sure all devices are on the same network")
         print("2. Allow camera/microphone permissions when prompted")
@@ -708,7 +659,8 @@ if __name__ == '__main__':
             host=host,
             port=port,
             debug=False,
-            allow_unsafe_werkzeug=True
+            allow_unsafe_werkzeug=True,
+            **ssl_kwargs
         )
     except Exception as e:
         print(f"Server startup error: {e}")

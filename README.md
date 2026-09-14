@@ -1,59 +1,47 @@
 ---
 
-# GestureSpeak: Bridging Communication Gaps with AI-Powered Sign Language Translation and Real-Time Video Conferencing
+# SyncUp: Fast, Professional Video Calls & Chat
 
 ## **Overview**
-GestureSpeak is an AI-powered platform designed to provide real-time sign language detection and translation. This application bridges communication gaps by integrating advanced deep learning models with a user-friendly interface. The system processes live video streams, detects sign language using YOLOv5, and translates it into text in real-time.
+SyncUp is a lightweight video-calling and chat platform. Create a room, share the code, and talk face-to-face with live text chat alongside the call - no plugins, no heavy client, just a browser.
 
 ---
 
 ## **Features**
-- **Real-Time Sign Detection**: Utilizes YOLOv5 for detecting and interpreting sign language with high accuracy.
-- **Video Conferencing**: Supports seamless communication between users.
-- **Secure Authentication**: Provides OTP-based secure user authentication.
-- **Intuitive Interface**: Features a clean, professional UI for easy navigation.
-- **Low Latency**: Enables real-time interaction with minimal delay.
+- **Video Conferencing**: Multi-participant rooms over WebRTC with automatic reconnect handling.
+- **Live Chat**: Real-time messaging inside every call room.
+- **Secure Authentication**: Password login plus OTP-based phone sign-in.
+- **Call Controls**: Camera/microphone toggles, device switching, and adjustable video quality.
+- **Low Latency**: Direct peer-to-peer media - the server only handles signaling.
 
 ---
 
 ## **Directory Structure**
 ```
-manoharreddyvoladri-gesture_speak_app/
-├── _.crt
-├── app.py             # Main application file
-├── best.pt            # Pre-trained YOLOv5 model
-├── call.py            # Video conferencing functionality
-├── realtime.py        # Real-time sign detection logic
+syncup/
+├── app.py             # Main application - routes, auth, rooms
+├── call.py            # SocketIO signaling (WebRTC + chat)
 ├── requirements.txt   # Python dependencies
 ├── server.crt         # SSL certificate
 ├── server.key         # SSL private key
 ├── vercel.json        # Deployment configuration
-├── Reports/           # Project-related documents
-│   ├── FINAL REVIEW.pptx
-│   ├── Project meetings.xlsx
-│   ├── REVIEW - 1.pptx
-│   ├── REVIEW.pptx
-│   └── base papers/
 ├── static/            # Static assets
 │   ├── css/
+│   │   ├── syncup.css   # Shared design tokens
 │   │   ├── dashboard.css
 │   │   ├── room.css
 │   │   └── style.css
 │   ├── images/
 │   └── js/
-│       ├── call.js
-│       └── main.js
+│       └── call.js
 ├── templates/         # HTML templates
 │   ├── dashboard.html
 │   ├── error.html
-│   ├── index.html
-│   ├── index1.html
 │   ├── land.html
 │   ├── login.html
 │   ├── register.html
 │   ├── room.html
 │   └── verify_otp.html
-└── test.py
 ```
 
 ---
@@ -67,8 +55,8 @@ manoharreddyvoladri-gesture_speak_app/
 
 ### **2. Clone the Repository**
 ```bash
-git clone https://github.com/username/manoharreddyvoladri-gesture_speak_app.git
-cd manoharreddyvoladri-gesture_speak_app
+git clone https://github.com/manoharreddyvoladri/Gesture_speak_App.git
+cd Gesture_speak_App
 ```
 
 ### **3. Install Dependencies**
@@ -82,6 +70,8 @@ Install the required packages:
 ```bash
 pip install -r requirements.txt
 ```
+
+Create a `.env` file with `SECRET_KEY`, `MONGODB_URI`, and Twilio credentials before running.
 
 ---
 
@@ -98,38 +88,24 @@ pip install -r requirements.txt
    ```
 
 3. **User Authentication**:
-   - Register and log in using the provided forms.
-   - Enter the OTP for secure authentication.
+   - Register and log in using the provided forms, or sign in with a phone number and OTP.
 
-4. **Sign Language Detection**:
-   - Navigate to the video conferencing feature.
-   - Signs will be detected and translated into text in real-time.
-
-5. **Real-Time Communication**:
-   - Use the `call.py` script to enable video calls between users.
-
----
-
-## **Dataset**
-- **Hand Landmark Dataset**: Contains 6,500 images of American Sign Language (ASL) hand signs with 21 keypoints tracked for each hand pose.
-- **Model**: Trained with YOLOv5 for high-accuracy real-time sign detection.
+4. **Start a Call**:
+   - Create a room from the dashboard and share the room code with others.
+   - Toggle camera/mic, switch devices, or adjust video quality from in-call settings.
+   - Chat with everyone in the room from the side panel.
 
 ---
 
 ## **Technologies Used**
-- **Backend**: Flask for handling server-side logic and routing.
-- **Deep Learning**: YOLOv5 for object detection and VGG16 for classification.
-- **Database**: MongoDB for user management.
-- **Video Conferencing**: WebRTC integrated through custom scripts.
+- **Backend**: Flask + Flask-SocketIO (eventlet) for server-side logic and real-time signaling.
+- **Database**: MongoDB for user accounts and room state.
+- **Video Conferencing**: WebRTC (peer-to-peer) with Socket.IO signaling.
+- **Auth**: Flask-Login, Flask-Bcrypt, Twilio for OTP delivery.
 
 ---
 
 ## **Deployment**
 The application includes a `vercel.json` configuration for deployment on platforms like Vercel. Ensure all dependencies and configurations are properly set before deployment.
-
----
-
-## **Conclusion**
-GestureSpeak successfully demonstrates the integration of AI with real-time communication tools to enhance accessibility for the deaf and hard of hearing community. With its high accuracy, low latency, and user-friendly interface, GestureSpeak paves the way for inclusive digital interactions.
 
 ---

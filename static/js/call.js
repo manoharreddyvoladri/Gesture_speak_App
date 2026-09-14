@@ -1,5 +1,5 @@
-// Usernames, chat text and predictions all come from other users over the
-// socket - escape before inserting via innerHTML to avoid stored XSS.
+// Usernames and chat text come from other users over the socket - escape
+// before inserting via innerHTML to avoid stored XSS.
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
@@ -46,8 +46,6 @@ class VideoCall {
 
         this.isVideoEnabled = true;
         this.isAudioEnabled = true;
-        this.isPredictionEnabled = false;
-        this.predictionInterval = null;
         this.debug = true;
         this.participants = new Set([this.username]);
         this.videoDevices = [];
@@ -141,12 +139,6 @@ class VideoCall {
 
         this.socket.on('reconnect_failed', () => {
             this.showError('Unable to reconnect to the call. Please refresh the page.');
-        });
-
-        this.socket.on('sign_prediction', (data) => {
-            if (data.username !== this.username) {
-                this.addPredictionToUI(data);
-            }
         });
 
         this.socket.on('room_participants', (data) => {
@@ -484,18 +476,6 @@ class VideoCall {
         return false;
     }
 
-    togglePrediction() {
-        this.isPredictionEnabled = !this.isPredictionEnabled;
-
-        if (this.isPredictionEnabled) {
-            this.startPredictionInterval();
-        } else if (this.predictionInterval) {
-            clearInterval(this.predictionInterval);
-        }
-
-        return this.isPredictionEnabled;
-    }
-
     async initializeSettings() {
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
@@ -675,90 +655,6 @@ class VideoCall {
         }
     }
 
-    startPredictionInterval() {
-        if (this.predictionInterval) {
-            clearInterval(this.predictionInterval);
-        }
-
-        this.predictionInterval = setInterval(() => {
-            this.captureAndPredict();
-        }, 2000); // Predict every 2 seconds
-    }
-
-    async captureAndPredict() {
-        if (!this.isPredictionEnabled || !this.localStream) return;
-
-        try {
-            const video = document.getElementById('localVideo');
-            if (!video) return;
-
-            const canvas = document.createElement('canvas');
-            canvas.width = 224;
-            canvas.height = 224;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const response = await fetch('/predict', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    image: canvas.toDataURL('image/jpeg', 0.8)
-                })
-            });
-
-            if (!response.ok) throw new Error('Prediction request failed');
-            const data = await response.json();
-            if (data.error) throw new Error(data.error);
-
-            if (data.prediction) {
-                // Add prediction to UI
-                this.addPredictionToUI(data);
-                // Broadcast prediction to room
-                this.socket.emit('sign_prediction', {
-                    room: this.roomId,
-                    username: this.username,
-                    prediction: data.prediction,
-                    confidence: data.confidence,
-                    timestamp: data.timestamp
-                });
-            }
-        } catch (error) {
-            console.error('Prediction error:', error);
-        }
-    }
-
-    addPredictionToUI(data) {
-        const container = document.getElementById('predictions-container');
-        if (!container) return;
-
-        const predictionElement = document.createElement('div');
-        predictionElement.className = 'prediction-item';
-        const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-        const confidence = typeof data.confidence === 'number' ? Math.round(data.confidence) : null;
-
-        predictionElement.innerHTML = `
-            <div class="prediction-content">
-                <div class="prediction-header">
-                    <span class="prediction-user">${escapeHtml(data.username || this.username)}</span>
-                    <span class="prediction-time">${timestamp}</span>
-                </div>
-                <div class="prediction-text">
-                    <strong>${escapeHtml(data.prediction)}</strong>
-                    ${confidence !== null ? `<span class="prediction-confidence">${confidence}%</span>` : ''}
-                </div>
-            </div>
-        `;
-
-        container.insertBefore(predictionElement, container.firstChild);
-
-        // Keep only last 10 predictions
-        while (container.children.length > 10) {
-            container.removeChild(container.lastChild);
-        }
-    }
-
     updateParticipantCount(count) {
         const countElement = document.getElementById('participantCount');
         if (countElement) {
@@ -800,11 +696,6 @@ class VideoCall {
         // Close all peer connections
         this.teardownPeers();
 
-        // Clear prediction interval
-        if (this.predictionInterval) {
-            clearInterval(this.predictionInterval);
-        }
-
         // Disconnect socket
         this.socket.emit('leave_room', {
             room: this.roomId,
@@ -839,13 +730,6 @@ document.addEventListener('DOMContentLoaded', () => {
             '<i class="fas fa-microphone"></i>' :
             '<i class="fas fa-microphone-slash"></i>';
         this.classList.toggle('active', isEnabled);
-    });
-
-    document.getElementById('toggle-prediction')?.addEventListener('click', function() {
-        const isEnabled = window.videoCall.togglePrediction();
-        this.classList.toggle('active', isEnabled);
-        const checkbox = document.getElementById('predictionEnabled');
-        if (checkbox) checkbox.checked = isEnabled;
     });
 
     document.getElementById('leave-room')?.addEventListener('click', () => {

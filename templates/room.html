@@ -6,30 +6,31 @@
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
 
-    <title>GestureSpeak Conference</title>
-    
+    <title>SyncUp - {{ room_id }}</title>
+
     <!-- Stylesheets -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/manrope.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/syncup.css') }}">
     <link href="{{ url_for('static', filename='css/room.css') }}" rel="stylesheet">
 
-    <!-- Add Socket.IO before other scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Socket.IO + Bootstrap before other scripts -->
+    <script src="{{ url_for('static', filename='vendor/socketio/socket.io.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 
     <style>
         :root {
-            --primary-color: #4f46e5;
+            --primary-color: var(--su-primary);
             --secondary-color: #818cf8;
-            --bg-dark: #1f2937;
-            --text-light: #f3f4f6;
+            --bg-dark: var(--su-call-bg);
+            --text-light: var(--su-call-text);
         }
 
         body {
             background-color: var(--bg-dark);
             color: var(--text-light);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--su-font);
             height: 100vh;
             margin: 0;
             overflow: hidden;
@@ -43,7 +44,7 @@
         }
 
         .room-info-bar {
-            background: rgba(31, 41, 55, 0.95);
+            background: #161616;
             padding: 0.75rem 1.5rem;
             display: flex;
             justify-content: space-between;
@@ -63,11 +64,20 @@
         }
 
         .btn-copy {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
             background: transparent;
             border: 1px solid rgba(255, 255, 255, 0.2);
             color: var(--text-light);
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.375rem;
+            font-size: 0.8125rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: var(--su-radius-pill);
+            cursor: pointer;
+        }
+
+        .btn-copy:hover {
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .content-area {
@@ -80,7 +90,7 @@
         }
 
         .video-section {
-            background: rgba(17, 24, 39, 0.7);
+            background: #101010;
             border-radius: 0.5rem;
             overflow: hidden;
         }
@@ -119,7 +129,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.3);
-            border-radius: 0.375rem;
+            border-radius: 8px;
             overflow: hidden;
         }
 
@@ -134,8 +144,8 @@
             bottom: 0;
             left: 0;
             right: 0;
-            padding: 0.5rem;
-            background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+            padding: 1rem;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
         }
 
         .name-tag {
@@ -145,7 +155,7 @@
         }
 
         .right-panel {
-            background: rgba(31, 41, 55, 0.95);
+            background: #161616;
             border-radius: 0.5rem;
             display: flex;
             flex-direction: column;
@@ -163,7 +173,7 @@
             transform: translateY(-50%);
             width: 24px;
             height: 48px;
-            background: rgba(31, 41, 55, 0.95);
+            background: #161616;
             border-radius: 4px 0 0 4px;
             display: flex;
             align-items: center;
@@ -213,7 +223,7 @@
         }
 
         .controls-bar {
-            background: rgba(31, 41, 55, 0.95);
+            background: #161616;
             padding: 1rem;
             display: flex;
             justify-content: center;
@@ -227,8 +237,8 @@
         }
 
         .control-button {
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             border: none;
             background: rgba(255, 255, 255, 0.1);
@@ -243,58 +253,20 @@
         }
 
         .control-button.active {
-            background: var(--primary-color);
+            background: #ffffff;
+            color: #0b0b0b;
+        }
+
+        .control-button.active:hover {
+            background: #e4e4e4;
         }
 
         .control-button.danger {
-            background: #ef4444;
+            background: var(--su-danger);
         }
 
         .control-button.danger:hover {
-            background: #dc2626;
-        }
-
-        .predictions-container {
-            height: 100%;
-            overflow-y: auto;
-        }
-
-        .prediction-item {
-            display: flex;
-            gap: 0.75rem;
-            padding: 0.75rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .user-avatar {
-            width: 32px;
-            height: 32px;
-            background: var(--primary-color);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-        }
-
-        .prediction-content {
-            flex: 1;
-        }
-
-        .prediction-user {
-            font-size: 0.875rem;
-            font-weight: 500;
-            margin-bottom: 0.25rem;
-        }
-
-        .prediction-text {
-            font-size: 1rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .prediction-time {
-            font-size: 0.75rem;
-            opacity: 0.7;
+            background: var(--su-danger-hover);
         }
 
         /* Mobile responsiveness */
@@ -338,112 +310,13 @@
             top: 1rem;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             padding: 0.5rem 1rem;
             border-radius: 1rem;
-            display: flex;
+            display: none;
             align-items: center;
             gap: 0.5rem;
             z-index: 1000;
-            display: none;
-        }
-        .predictions-panel {
-            background: rgba(0, 0, 0, 0.8);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-top: 1rem;
-        }
-
-        .prediction-item {
-            display: flex;
-            align-items: flex-start;
-            padding: 0.75rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .prediction-content {
-            flex: 1;
-            margin-left: 1rem;
-        }
-
-        .prediction-letter {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .prediction-word {
-            font-size: 1rem;
-            opacity: 0.8;
-        }
-
-        .prediction-confidence {
-            font-size: 0.875rem;
-            opacity: 0.6;
-        }
-
-        .prediction-status {
-            position: fixed;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .prediction-status.visible {
-            opacity: 1;
-        }
-
-        /* Control button styles */
-        .control-button[data-active="true"] {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        /* Video grid improvements */
-        .video-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            border-radius: 8px;
-        }
-
-        .video-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 1rem;
-            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-        }
-
-        .video-overlay .name-tag {
-            color: white;
-            font-weight: 500;
-        }
-
-        .sign-indicator {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 0.5rem;
-            border-radius: 4px;
-            color: white;
-            font-size: 0.875rem;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .sign-indicator.visible {
-            opacity: 1;
         }
 
         .connection-status.visible {
@@ -470,7 +343,8 @@
 
         .chat-message.own {
             align-self: flex-end;
-            background: var(--primary-color);
+            background: #ffffff;
+            color: #0b0b0b;
         }
 
         .chat-message .chat-meta {
@@ -480,6 +354,10 @@
             font-size: 0.7rem;
             opacity: 0.7;
             margin-bottom: 0.15rem;
+        }
+
+        .chat-message.own .chat-meta {
+            opacity: 0.6;
         }
 
         .chat-input {
@@ -497,12 +375,17 @@
         }
 
         .chat-input button {
-            background: var(--primary-color);
+            background: rgba(255, 255, 255, 0.12);
             border: none;
             color: white;
             border-radius: 0.375rem;
             padding: 0 0.9rem;
             cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .chat-input button:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         /* Participants tab */
@@ -515,9 +398,6 @@
             font-size: 0.9rem;
         }
     </style>
-
-
-
 </head>
 <body class="conference-body">
     <!-- Connection Status -->
@@ -531,14 +411,20 @@
         <!-- Room Info Bar -->
         <div class="room-info-bar">
             <div class="room-details">
+                <span class="su-logo-mark">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="6" width="12" height="12" rx="3" stroke="currentColor" stroke-width="2"/>
+                        <path d="M15 9.5l5-3v11l-5-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
                 <span class="room-id">Room: {{ room_id }}</span>
-                <button class="btn-copy" onclick="copyRoomCode()" title="Copy Room Code">
-                    <i class="fas fa-copy"></i>
+                <button class="btn-copy" onclick="copyMeetLink()" title="Copy meet link to share">
+                    <i class="fas fa-link"></i> Copy link
                 </button>
             </div>
             <div class="participant-count">
                 <i class="fas fa-users"></i>
-                <span id="participantCount">1</span>
+                <span id="participantCount">{{ room_data.participants|length }}</span>
             </div>
         </div>
 
@@ -546,7 +432,7 @@
         <div class="content-area">
             <!-- Video Section -->
             <div class="video-section">
-                <div id="video-grid" class="video-grid" data-count="1"></div>
+                <div id="video-grid" class="video-grid" data-count="{{ room_data.participants|length }}"></div>
             </div>
 
             <!-- Right Panel -->
@@ -558,10 +444,7 @@
 
                 <!-- Panel Tabs -->
                 <div class="panel-tabs">
-                    <button class="tab-btn active" data-tab="predictions">
-                        <i class="fas fa-american-sign-language-interpreting"></i> Signs
-                    </button>
-                    <button class="tab-btn" data-tab="chat">
+                    <button class="tab-btn active" data-tab="chat">
                         <i class="fas fa-comments"></i> Chat
                     </button>
                     <button class="tab-btn" data-tab="participants">
@@ -571,15 +454,8 @@
 
                 <!-- Tab Content -->
                 <div class="tab-content">
-                    <!-- Predictions Tab -->
-                    <div id="predictions" class="tab-pane active">
-                        <div class="predictions-container" id="predictions-container">
-                            <!-- Predictions will be added here dynamically -->
-                        </div>
-                    </div>
-
                     <!-- Chat Tab -->
-                    <div id="chat" class="tab-pane">
+                    <div id="chat" class="tab-pane active">
                         <div class="chat-messages" id="chatMessages"></div>
                         <div class="chat-input">
                             <input type="text" id="messageInput" placeholder="Type a message...">
@@ -614,9 +490,6 @@
 
             <!-- Feature Controls -->
             <div class="control-group">
-                <button id="toggle-prediction" class="control-button" title="Toggle Sign Detection">
-                    <i class="fas fa-american-sign-language-interpreting"></i>
-                </button>
                 <button id="settings" class="control-button" title="Settings">
                     <i class="fas fa-cog"></i>
                 </button>
@@ -643,22 +516,16 @@
                     <div class="settings-section">
                         <h6>Video</h6>
                         <select id="cameraSelect" class="form-select bg-secondary text-light mb-3"></select>
-                        
+
                         <h6>Audio</h6>
                         <select id="microphoneSelect" class="form-select bg-secondary text-light mb-3"></select>
-                        
+
                         <h6>Video Quality</h6>
                         <select id="videoQuality" class="form-select bg-secondary text-light mb-3">
                             <option value="low">Low (360p)</option>
                             <option value="medium" selected>Medium (720p)</option>
                             <option value="high">High (1080p)</option>
                         </select>
-
-                        <h6>Sign Detection</h6>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="predictionEnabled">
-                            <label class="form-check-label">Enable Sign Detection</label>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -684,17 +551,13 @@
         </div>
     </div>
 
-    <!-- Prediction Status -->
-    <div id="predictionStatus" class="prediction-status"></div>
-
     <!-- Scripts -->
     <script>
         // Constants from Flask
         const ROOM_ID = "{{ room_id }}";
         const USERNAME = "{{ username }}";
+        const ROOM_LINK = "{{ room_link }}";
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="{{ url_for('static', filename='js/call.js') }}"></script>
 
     <!-- Initialize page -->
@@ -713,14 +576,17 @@
                 });
             });
 
-            // Copy room code function
-            window.copyRoomCode = () => {
-                navigator.clipboard.writeText(ROOM_ID).then(() => {
+            // Copy the shareable meet link (not just the room code) - anyone
+            // logged in who opens this link is added to the room automatically.
+            window.copyMeetLink = () => {
+                navigator.clipboard.writeText(ROOM_LINK).then(() => {
                     const btn = document.querySelector('.btn-copy');
                     const icon = btn.querySelector('i');
+                    const originalHTML = btn.innerHTML;
                     icon.className = 'fas fa-check';
+                    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
                     setTimeout(() => {
-                        icon.className = 'fas fa-copy';
+                        btn.innerHTML = originalHTML;
                     }, 2000);
                 });
             };
@@ -738,7 +604,7 @@
             window.switchTab = (tabId) => {
                 document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
                 document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-                
+
                 document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
                 document.getElementById(tabId).classList.add('active');
             };
@@ -749,17 +615,9 @@
                 window.location.reload();
             };
 
-            // Settings button was previously not wired to anything - open the modal
+            // Settings button
             document.getElementById('settings')?.addEventListener('click', () => {
                 settingsModal.show();
-            });
-
-            // Keep the settings-modal checkbox and the control-bar button in sync,
-            // since both control the same underlying prediction toggle
-            document.getElementById('predictionEnabled')?.addEventListener('change', function () {
-                const isEnabled = window.videoCall.togglePrediction();
-                this.checked = isEnabled;
-                document.getElementById('toggle-prediction')?.classList.toggle('active', isEnabled);
             });
 
             document.getElementById('videoQuality')?.addEventListener('change', function () {
@@ -770,7 +628,7 @@
                 window.videoCall?.switchToNextCamera();
             });
 
-            // Chat - previously had no backing implementation at all
+            // Chat
             window.sendMessage = () => {
                 const input = document.getElementById('messageInput');
                 if (!input || !window.videoCall) return;

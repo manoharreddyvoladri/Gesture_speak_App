@@ -1,0 +1,174 @@
+/* SyncUp shared design system - loaded on every page.
+   Minimal black & white product. Color is reserved for exactly two
+   meanings: green = start/join a call, red = end/leave a call. Everything
+   else is black, white, and gray. */
+
+:root {
+    /* Palette - monochrome, with green/red reserved for call actions */
+    --su-primary: #111111;
+    --su-primary-hover: #000000;
+    --su-primary-soft: #f0f0f0;
+
+    --su-success: #16a34a;
+    --su-success-hover: #128a3e;
+    --su-success-soft: #e8f6ed;
+
+    --su-danger: #dc2626;
+    --su-danger-hover: #b91c1c;
+    --su-danger-soft: #fdeceb;
+
+    --su-bg: #fafafa;
+    --su-surface: #ffffff;
+    --su-text: #111111;
+    --su-text-secondary: #6b6b6b;
+    --su-border: #e2e2e2;
+
+    --su-call-bg: #0b0b0b;
+    --su-call-surface: rgba(255, 255, 255, 0.06);
+    --su-call-border: rgba(255, 255, 255, 0.12);
+    --su-call-text: #f5f5f5;
+
+    /* Scale */
+    --su-radius-sm: 8px;
+    --su-radius: 12px;
+    --su-radius-lg: 20px;
+    --su-radius-pill: 999px;
+
+    --su-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05);
+    --su-shadow-md: 0 2px 6px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.06);
+    --su-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+
+    --su-font: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--su-font);
+}
+
+/* Logo mark - inline SVG, no image request, reused across every page */
+.su-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.su-logo .su-logo-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--su-radius-sm);
+    background: var(--su-primary);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.su-logo .su-logo-mark svg {
+    width: 20px;
+    height: 20px;
+}
+
+.su-logo .su-logo-word {
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: -0.01em;
+}
+
+/* Buttons */
+.su-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--su-font);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    border: 1px solid transparent;
+    border-radius: var(--su-radius-pill);
+    padding: 0.65rem 1.5rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+    text-decoration: none;
+}
+
+.su-btn:active {
+    transform: translateY(1px);
+}
+
+.su-btn-primary {
+    background: var(--su-primary);
+    color: #fff;
+}
+
+.su-btn-primary:hover {
+    background: var(--su-primary-hover);
+}
+
+.su-btn-secondary {
+    background: transparent;
+    color: var(--su-text);
+    border-color: var(--su-border);
+}
+
+.su-btn-secondary:hover {
+    background: var(--su-primary-soft);
+}
+
+/* Reserved for starting/joining a call */
+.su-btn-success {
+    background: var(--su-success);
+    color: #fff;
+}
+
+.su-btn-success:hover {
+    background: var(--su-success-hover);
+}
+
+/* Reserved for ending/leaving a call */
+.su-btn-danger {
+    background: var(--su-danger);
+    color: #fff;
+}
+
+.su-btn-danger:hover {
+    background: var(--su-danger-hover);
+}
+
+.su-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Cards & surfaces */
+.su-card {
+    background: var(--su-surface);
+    border: 1px solid var(--su-border);
+    border-radius: var(--su-radius-lg);
+    box-shadow: var(--su-shadow-sm);
+}
+
+/* Inputs */
+.su-input {
+    width: 100%;
+    font-family: var(--su-font);
+    font-size: 0.9375rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--su-border);
+    border-radius: var(--su-radius-sm);
+    background: var(--su-surface);
+    color: var(--su-text);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.su-input:focus {
+    outline: none;
+    border-color: var(--su-primary);
+    box-shadow: 0 0 0 3px var(--su-primary-soft);
+}

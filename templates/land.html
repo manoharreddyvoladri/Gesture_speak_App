@@ -3,24 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to GestureSpeak - Sign Language Translation</title>
+    <title>SyncUp - Fast, Professional Video Calls</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/manrope.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/syncup.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
 </head>
 <body class="landing-page">
     <div class="hero-section">
         <nav class="landing-nav">
-            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GestureSpeak Logo" class="nav-logo">
+            <a href="{{ url_for('land') }}" class="su-logo">
+                <span class="su-logo-mark">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="6" width="12" height="12" rx="3" stroke="currentColor" stroke-width="2"/>
+                        <path d="M15 9.5l5-3v11l-5-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+                <span class="su-logo-word">SyncUp</span>
+            </a>
             <div class="nav-links">
                 <a href="#features" class="nav-link">Features</a>
                 <a href="#about" class="nav-link">About</a>
                 <a href="{{ url_for('login') }}" class="nav-link highlight">Sign In</a>
             </div>
         </nav>
-        
+
         <div class="hero-content">
-            <h1 class="hero-title">Transform Sign Language Into Text</h1>
-            <p class="hero-subtitle">Real-time translation powered by AI technology</p>
+            <h1 class="hero-title">Video calls built for speed</h1>
+            <p class="hero-subtitle">Crisp calls, real-time chat, and rooms that open in a click - no clutter, no lag.</p>
             <div class="auth-buttons">
                 <a href="{{ url_for('register') }}" class="primary-button">Get Started <i class="fas fa-arrow-right"></i></a>
                 <a href="{{ url_for('login') }}" class="secondary-button">Sign In</a>
@@ -29,22 +39,22 @@
     </div>
 
     <div class="features-section" id="features">
-        <h2>Why Choose GestureSpeak</h2>
+        <h2>Why teams choose SyncUp</h2>
         <div class="features-grid">
             <div class="feature-card">
                 <i class="fas fa-bolt feature-icon"></i>
-                <h3>Real-Time Translation</h3>
-                <p>Instant sign language to text conversion</p>
+                <h3>Fast by Default</h3>
+                <p>Lightweight app, instant room creation, no heavy plugins to install</p>
             </div>
             <div class="feature-card">
-                <i class="fas fa-mobile-alt feature-icon"></i>
-                <h3>Mobile Friendly</h3>
-                <p>Works seamlessly on all devices</p>
+                <i class="fas fa-comments feature-icon"></i>
+                <h3>Calls + Chat Together</h3>
+                <p>Live video, audio, and messaging in one room - nothing to switch between</p>
             </div>
             <div class="feature-card">
                 <i class="fas fa-shield-alt feature-icon"></i>
                 <h3>Secure & Private</h3>
-                <p>Your data is protected with encryption</p>
+                <p>OTP-verified sign-in and encrypted sessions protect every room</p>
             </div>
         </div>
     </div>

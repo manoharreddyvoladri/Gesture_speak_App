@@ -3,6 +3,7 @@ model/
 *.h5
 venv/
 .env
+*.log
 
 
 # Python
