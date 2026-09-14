@@ -21,13 +21,18 @@ from call import init_video_call
 load_dotenv()
 
 # Configure logging
+# A hosting platform (Render, etc.) captures stdout/stderr as the log
+# stream and gives you an ephemeral filesystem - writing to a local log
+# file there is wasted I/O that nobody will ever read. Only add the
+# FileHandler for local development.
+_log_handlers = [logging.StreamHandler()]
+if os.getenv('FLASK_ENV', 'production') == 'development':
+    _log_handlers.append(logging.FileHandler(os.getenv('LOG_FILE', 'app.log')))
+
 logging.basicConfig(
     level=os.getenv('LOG_LEVEL', 'INFO'),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(os.getenv('LOG_FILE', 'app.log'))
-    ]
+    handlers=_log_handlers
 )
 logger = logging.getLogger(__name__)
 
@@ -626,11 +631,16 @@ if __name__ == '__main__':
         # URL actually works for other devices, and so a browser that
         # auto-upgrades to https/wss (many do) hits a server that's actually
         # listening for TLS instead of sending it a raw HTTP 400.
+        # Only self-sign locally. A real deployment (Render, etc.) terminates
+        # HTTPS at its own edge/proxy and forwards plain HTTP to this process -
+        # wrapping our socket in this self-signed cert there too would make
+        # the platform's own proxy fail to talk to us.
+        is_local_dev = os.getenv('FLASK_ENV', 'production') == 'development'
         cert_path = os.getenv('SSL_CERT_PATH', 'server.crt')
         key_path = os.getenv('SSL_KEY_PATH', 'server.key')
         ssl_kwargs = {}
         scheme = 'http'
-        if os.path.exists(cert_path) and os.path.exists(key_path):
+        if is_local_dev and os.path.exists(cert_path) and os.path.exists(key_path):
             ssl_kwargs = {'certfile': cert_path, 'keyfile': key_path}
             scheme = 'https'
 
@@ -644,9 +654,12 @@ if __name__ == '__main__':
             print("\n(Self-signed certificate - your browser will warn once;")
             print(" accept/continue to proceed. Required for camera/mic access")
             print(" from any device other than localhost.)")
-        else:
+        elif is_local_dev:
             print(f"\nWARNING: no {cert_path}/{key_path} found - running plain HTTP.")
             print("Camera/microphone will only work at http://localhost, not the LAN URL.")
+        else:
+            print("\nRunning plain HTTP - expected behind a platform proxy/load")
+            print("balancer (Render, etc.) that terminates HTTPS for you.")
         print("\nImportant Notes:")
         print("1. Make sure all devices are on the same network")
         print("2. Allow camera/microphone permissions when prompted")
