@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -99,12 +96,16 @@ CORS(app, resources={
 
 # Single SocketIO instance for the whole app (video-call signaling is wired
 # onto this same instance via init_video_call, not a second SocketIO()).
+# async_mode='threading' uses plain Python threads with no monkey-patching -
+# eventlet's monkey_patch() broke on newer Python threading internals
+# (missing _thread.start_joinable_thread), and pinning an older Python on
+# the deploy platform proved unreliable, so this sidesteps that entirely.
 socketio = SocketIO(
     app,
     cors_allowed_origins=cors_origins,
     ping_timeout=60,
     ping_interval=25,
-    async_mode='eventlet',
+    async_mode='threading',
     logger=True,
     engineio_logger=False,
     allow_upgrades=True
@@ -641,7 +642,10 @@ if __name__ == '__main__':
         ssl_kwargs = {}
         scheme = 'http'
         if is_local_dev and os.path.exists(cert_path) and os.path.exists(key_path):
-            ssl_kwargs = {'certfile': cert_path, 'keyfile': key_path}
+            # threading mode runs on Werkzeug's run_simple(), which takes
+            # ssl_context=(certfile, keyfile) - not the certfile/keyfile
+            # kwargs eventlet's wrap_ssl() used.
+            ssl_kwargs = {'ssl_context': (cert_path, key_path)}
             scheme = 'https'
 
         print("\n" + "="*50)

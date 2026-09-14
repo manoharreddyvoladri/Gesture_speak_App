@@ -15,9 +15,9 @@ def init_video_call(app, socketio):
     config) actually run on the socket connections clients use.
     """
 
-    # Track active users and rooms (in-memory - fine for a single eventlet
-    # worker process; would need a shared message queue/backend to scale
-    # across multiple worker processes).
+    # Track active users and rooms (in-memory - fine for a single worker
+    # process; would need a shared message queue/backend to scale across
+    # multiple worker processes).
     active_rooms = {}
     user_rooms = {}
 
